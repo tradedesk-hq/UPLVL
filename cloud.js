@@ -8,8 +8,8 @@
    4. Paste them below, then host the app (see SETUP-SYNC.md)
    ============================================================ */
 
-const SUPABASE_URL = "";       // e.g. "https://abcd1234.supabase.co"
-const SUPABASE_ANON_KEY = "";  // the public "anon" key — safe to embed (RLS protects data)
+const SUPABASE_URL = "https://qefmkwccljnvrjdipmpp.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_2Nl3xTRq_9-EUZqLwtUK1A_MPROFBUj";  // publishable key — safe to embed (RLS protects your data)
 
 /* ---------- internals ---------- */
 let sb = null;
