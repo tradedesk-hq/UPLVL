@@ -7,6 +7,10 @@ marketing/
 uplvl.html
 style.prev.css
 
+# Private notes / data — synced to Google Drive, never published to the public repo
+PROJECT-INFO.md
+uplvl-backup.json
+
 # OS / editor cruft
 .DS_Store
 Icon?

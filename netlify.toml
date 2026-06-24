@@ -1,0 +1,6 @@
+# Netlify config — UPLVL is a static site served straight from the repo root
+# (no build step). Once this repo is connected to Netlify
+# (app.netlify.com → Add new site → Import an existing project → GitHub → tradedesk-hq/UPLVL),
+# every push to `main` auto-deploys.
+[build]
+  publish = "."

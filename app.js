@@ -42,9 +42,9 @@ const SCORING = {
 
 // Verification gate. When true: timed habits must be completed via the timer and
 // checkable habits must capture a photo (tapping the box can only un-complete).
-// Turned OFF for now — habits are simple tap-to-complete, no timer/photo required.
-// Flip back to true to re-enable mandatory verification.
-const REQUIRE_VERIFICATION = false;
+// ON — timed habits complete via the stopwatch, photo habits via a captured photo.
+// Flip back to false for simple tap-to-complete (no timer/photo required).
+const REQUIRE_VERIFICATION = true;
 
 /* ---------- daily bonus quest pool ----------
    Add as many as you like — each needs a unique id. The app deterministically
@@ -777,19 +777,25 @@ const principleInput = document.getElementById("principleInput");
 const principleEmpty = document.getElementById("principleEmpty");
 
 function dayKey() { return ymd(currentDay); }
-// Only TODAY is editable — past days are view-only, future days are unreachable.
-function isEditableDay() { return dayKey() === ymd(new Date()); }
+function ymdDaysAgo(n) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - n); return ymd(d); }
+function isToday() { return dayKey() === ymd(new Date()); }
+// Today and yesterday are editable — so you can backfill anything you forgot.
+// Older days are view-only; future days are unreachable. Scoring recomputes from the
+// full history, so editing yesterday correctly updates XP, streaks and ranks.
+function isEditableDay() { const k = dayKey(); return k === ymd(new Date()) || k === ymdDaysAgo(1); }
 
 function renderDaily() {
   const key = dayKey();
   const todayKey = ymd(new Date());
-  const isToday = key === todayKey;
-  document.getElementById("dayTitle").textContent = isToday ? "Today" : shortDate(key);
+  const onToday = key === todayKey;
+  const editable = isEditableDay();
+  document.getElementById("dayTitle").textContent =
+    onToday ? "Today" : key === ymdDaysAgo(1) ? "Yesterday" : shortDate(key);
   document.getElementById("todayLabel").textContent = prettyDate(new Date()); // keep fresh across midnight
 
-  // lock UI for past days; block navigating into the future
-  document.getElementById("dayLock").hidden = isToday;
-  document.getElementById("daily").classList.toggle("locked", !isToday);
+  // lock UI only for days you can no longer edit; block navigating into the future
+  document.getElementById("dayLock").hidden = editable;
+  document.getElementById("daily").classList.toggle("locked", !editable);
   document.getElementById("dayNext").disabled = key >= todayKey;
 
   renderHabits(key);
@@ -2024,13 +2030,13 @@ function renderBossSlot() {
          </div>
        </div>`;
     const chk = document.getElementById("chCheck");
-    if (chk) chk.onclick = () => { if (!isEditableDay()) return; active.checks[todayKey] = true; save(); renderDaily(); };
+    if (chk) chk.onclick = () => { if (!isToday()) return; active.checks[todayKey] = true; save(); renderDaily(); };
     const ab = document.getElementById("chAbandon");
     if (ab) ab.onclick = () => { if (confirm("Abandon the boss fight? You forfeit your staked XP.")) { db.challenge.active = null; save(); renderDaily(); } };
     return;
   }
 
-  const offer = isEditableDay() ? bossOfferForToday() : null;
+  const offer = isToday() ? bossOfferForToday() : null;
   if (!offer) { slot.innerHTML = ""; return; }
   slot.innerHTML =
     `<div class="boss-offer">
