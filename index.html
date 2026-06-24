@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UPLVL</title>
+  <meta name="description" content="UPLVL — gamified self-improvement: habits, XP, a Bronze→Unreal rank ladder, streaks and boss fights." />
+  <meta name="theme-color" content="#0A0C0F" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="UPLVL" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">✦</span>
+      <h1>UPLVL</h1>
+    </div>
+    <div class="topbar-right">
+      <span class="rank-chip" id="rankChip" hidden></span>
+      <span class="today" id="todayLabel"></span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="daily">✓ Daily</button>
+    <button class="tab" data-tab="profile">👤 Profile</button>
+    <button class="tab" data-tab="insights">📊 Insights</button>
+    <button class="tab" data-tab="journal">✎ Journal</button>
+    <button class="tab" data-tab="bible">✝ Bible Reading</button>
+  </nav>
+
+  <main>
+    <!-- ===================== DAILY ===================== -->
+    <section id="daily" class="panel active">
+
+      <!-- Rank hero -->
+      <div class="rank-hero" id="rankHero">
+        <div class="badge" id="rankBadge"><span class="badge-div" id="badgeDiv"></span></div>
+        <div class="rank-info">
+          <div class="rank-top">
+            <span class="rank-name" id="rankName">Level 1</span>
+            <span class="rank-tier" id="rankTier"></span>
+            <span class="rank-rp" id="rankRP"></span>
+          </div>
+          <div class="rank-bar"><div class="rank-bar-fill" id="rankBarFill"></div></div>
+          <div class="rank-meta">
+            <span id="rankToNext"></span>
+            <span id="rankStreak"></span>
+          </div>
+          <div class="rank-today" id="rankToday"></div>
+        </div>
+      </div>
+
+      <!-- Boss fight: surfaces randomly; an active challenge also shows here -->
+      <div id="bossSlot"></div>
+
+      <div class="panel-head">
+        <div class="date-nav">
+          <button id="dayPrev" class="ghost" aria-label="Previous day">‹</button>
+          <h2 id="dayTitle">Today</h2>
+          <button id="dayNext" class="ghost" aria-label="Next day">›</button>
+        </div>
+        <div class="stats" id="dailyStats"></div>
+      </div>
+
+      <div id="dayLock" class="day-lock" hidden>🔒 Past day — view only. You can't check things off once a day is over.</div>
+
+      <!-- Daily habits: recurring checklist, ticked off each day -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Daily Habits</h3>
+          <button id="habitManage" class="ghost small" aria-pressed="false">Manage</button>
+        </div>
+        <ul id="habitList" class="task-list"></ul>
+        <p class="empty" id="habitEmpty" hidden>No daily habits yet. Tap Manage to add one.</p>
+        <div id="habitManager" class="manager" hidden>
+          <div class="add-row">
+            <input id="habitInput" type="text" placeholder="Add a daily habit…" />
+            <button id="habitAdd" class="primary">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily bonus quests: random extra points -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Daily Bonus Quests</h3>
+          <span class="block-note">Random each day · extra XP</span>
+        </div>
+        <ul id="questList" class="task-list"></ul>
+      </div>
+
+      <!-- Workout -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Workout</h3>
+          <span class="block-note" id="workoutNote"></span>
+        </div>
+        <div id="workoutBody"></div>
+      </div>
+
+      <!-- One-off goals for the selected day -->
+      <div class="section-block">
+        <div class="block-head"><h3>Today's Goals</h3></div>
+        <div class="add-row">
+          <input id="taskInput" type="text" placeholder="Add a one-off goal for this day…" />
+          <button id="taskAdd" class="primary">Add</button>
+        </div>
+        <ul id="taskList" class="task-list"></ul>
+        <p class="empty" id="taskEmpty">No one-off goals for this day yet.</p>
+      </div>
+
+      <!-- Guiding principles: standing reminders, not checked off -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Guiding Principles</h3>
+          <button id="principleManage" class="ghost small" aria-pressed="false">Manage</button>
+        </div>
+        <ul id="principleList" class="principle-list"></ul>
+        <p class="empty" id="principleEmpty" hidden>No guiding principles yet. Tap Manage to add one.</p>
+        <div id="principleManager" class="manager" hidden>
+          <div class="add-row">
+            <input id="principleInput" type="text" placeholder="Add a guiding principle…" />
+            <button id="principleAdd" class="primary">Add</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PROFILE ===================== -->
+    <section id="profile" class="panel">
+      <div class="panel-head">
+        <h2 id="profileTitle">Profile</h2>
+        <div class="stats" id="profileSub"></div>
+      </div>
+
+      <!-- Identity / hero -->
+      <div class="profile-hero" id="profileHero"></div>
+
+      <!-- Rank ladder -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Rank Ladder</h3>
+          <span class="block-note" id="ladderNote"></span>
+        </div>
+        <div class="ladder" id="rankLadder"></div>
+      </div>
+
+      <!-- Friends -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Friends</h3>
+          <span class="block-note">Leaderboard</span>
+        </div>
+        <div id="friendsBody"></div>
+      </div>
+
+      <!-- Achievements -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Achievements</h3>
+          <span class="block-note" id="achCount"></span>
+        </div>
+        <div class="ach-grid" id="achGrid"></div>
+      </div>
+    </section>
+
+    <!-- ===================== INSIGHTS ===================== -->
+    <section id="insights" class="panel">
+      <div class="panel-head">
+        <h2>Insights</h2>
+        <div class="journal-head-actions">
+          <button id="recapBtn" class="ghost small">🎬 Recap</button>
+          <span class="stats" id="insightsSub"></span>
+        </div>
+      </div>
+
+      <div class="stat-cards" id="statCards"></div>
+
+      <div class="section-block" id="trendBlock" hidden>
+        <div class="block-head"><h3>Trend</h3></div>
+        <div id="trendBody"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="block-head"><h3>Personal Records</h3></div>
+        <div class="record-grid" id="recordGrid"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Consistency</h3>
+          <span class="block-note" id="heatmapNote"></span>
+        </div>
+        <div class="heatmap-wrap"><div class="heatmap" id="heatmap"></div></div>
+        <div class="heat-legend" id="heatLegend"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="block-head"><h3>XP Over Time</h3></div>
+        <div id="rpChart"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="block-head"><h3>Habit Completion <span class="block-note">last 30 days</span></h3></div>
+        <div id="habitRates"></div>
+        <p class="empty" id="ratesEmpty" hidden>Not enough history yet — check off some habits!</p>
+      </div>
+    </section>
+
+    <!-- ===================== JOURNAL ===================== -->
+    <section id="journal" class="panel">
+      <div class="panel-head">
+        <h2>Journal</h2>
+        <div class="journal-head-actions">
+          <button id="journalEod" class="ghost small">🌙 End-of-day review</button>
+          <button id="journalNew" class="primary">+ New Entry</button>
+        </div>
+      </div>
+
+      <input id="journalSearch" type="text" class="journal-search" placeholder="🔍 Search entries, tags…" />
+
+      <div class="journal-layout">
+        <aside class="entry-list" id="journalList"></aside>
+        <div class="entry-editor">
+          <input id="journalTitle" type="text" class="entry-title" placeholder="Entry title…" />
+          <input id="journalTags" type="text" class="tags-input" placeholder="Tags (comma-separated)…" />
+          <div class="entry-meta" id="journalMeta"></div>
+          <div class="editor-toolbar">
+            <button id="journalPrompt" class="ghost small">💡 Insert a prompt</button>
+          </div>
+          <textarea id="journalBody" placeholder="What's on your mind today?"></textarea>
+          <div class="editor-actions">
+            <span class="saved-note" id="journalSaved"></span>
+            <button id="journalDelete" class="danger">Delete</button>
+            <button id="journalSave" class="primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== BIBLE READING ===================== -->
+    <section id="bible" class="panel">
+      <div class="panel-head">
+        <h2>Bible Reading</h2>
+        <div class="stats" id="bibleStats"></div>
+      </div>
+
+      <!-- Verse of the day -->
+      <div class="verse-card" id="verseCard"></div>
+
+      <!-- Reading plan -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Reading Plan</h3>
+          <select id="planSelect" class="mini-select" aria-label="Choose a reading plan"></select>
+        </div>
+        <div id="planBody"></div>
+      </div>
+
+      <!-- 66-book progress -->
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Books Read</h3>
+          <span class="block-note" id="booksCount"></span>
+        </div>
+        <div class="book-grid" id="bookGrid"></div>
+      </div>
+
+      <!-- Prayer list -->
+      <div class="section-block">
+        <div class="block-head"><h3>Prayer List</h3></div>
+        <div class="add-row">
+          <input id="prayerInput" type="text" placeholder="Add a prayer request…" />
+          <button id="prayerAdd" class="primary">Add</button>
+        </div>
+        <ul id="prayerList" class="prayer-list"></ul>
+        <p class="empty" id="prayerEmpty" hidden>No active prayer requests.</p>
+        <div id="answeredWrap" hidden>
+          <button class="answered-toggle" id="answeredToggle" aria-expanded="false">
+            Answered prayers (<span id="answeredCount">0</span>) ▾
+          </button>
+          <ul id="answeredList" class="prayer-list answered" hidden></ul>
+        </div>
+      </div>
+
+      <!-- Log a reading -->
+      <div class="section-block">
+        <div class="block-head"><h3>Log a Reading</h3></div>
+        <div class="bible-form">
+          <div class="field">
+            <label for="bDate">Date</label>
+            <input id="bDate" type="date" />
+          </div>
+          <div class="field">
+            <label for="bBook">Book</label>
+            <input id="bBook" type="text" list="bookList" placeholder="e.g. John" />
+            <datalist id="bookList"></datalist>
+          </div>
+          <div class="field narrow">
+            <label for="bChapter">Chapter(s)</label>
+            <input id="bChapter" type="text" placeholder="e.g. 3 or 1-4" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="bNotes">Notes & reflections</label>
+          <textarea id="bNotes" placeholder="What stood out? Verses, thoughts, prayers…"></textarea>
+        </div>
+        <div class="add-row right">
+          <button id="bAdd" class="primary">Log Reading</button>
+        </div>
+
+        <ul id="bibleList" class="reading-list"></ul>
+        <p class="empty" id="bibleEmpty">No readings logged yet.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Everything is saved privately on this device.</span>
+    <span class="foot-actions">
+      <button id="syncBtn" class="ghost small">☁ Sync</button>
+      <button id="importBtn" class="ghost small">Import</button>
+      <button id="exportBtn" class="ghost small">Export backup</button>
+    </span>
+    <input type="file" id="importFile" accept="application/json,.json" hidden />
+    <input type="file" id="photoInput" accept="image/*" capture="environment" hidden />
+  </footer>
+
+  <!-- Account / sync modal -->
+  <div id="acctModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="acctClose" aria-label="Close">✕</button>
+      <h3>Sync across devices</h3>
+
+      <div id="acctSignedOut" hidden>
+        <p class="modal-note">Sign in to keep your laptop and phone in sync.</p>
+        <input id="acctEmail" type="email" placeholder="Email" autocomplete="email" />
+        <input id="acctPass" type="password" placeholder="Password" autocomplete="current-password" />
+        <div class="modal-actions">
+          <button id="acctSignup" class="ghost small">Create account</button>
+          <button id="acctSignin" class="primary">Sign in</button>
+        </div>
+        <p class="modal-msg" id="acctMsg"></p>
+      </div>
+
+      <div id="acctSignedIn" hidden>
+        <p class="modal-note">Signed in as <strong id="acctWho"></strong></p>
+        <p class="modal-msg" id="acctSyncMsg">Synced ✓</p>
+        <div class="modal-actions"><button id="acctSignout" class="danger">Sign out</button></div>
+      </div>
+
+      <p class="modal-config" id="acctConfig">
+        Cloud sync isn't set up yet. Follow <code>SETUP-SYNC.md</code>, then add your
+        Supabase keys at the top of <code>cloud.js</code>.
+      </p>
+    </div>
+  </div>
+
+  <!-- Onboarding wizard (steps rendered dynamically by app.js) -->
+  <div id="onboardModal" class="modal" hidden>
+    <div class="modal-card onboard-card">
+      <div class="ob-progress"><div class="ob-progress-fill" id="obProgressFill"></div></div>
+      <div class="ob-body" id="obBody"></div>
+      <div class="ob-nav">
+        <button class="ghost small" id="obBack">Back</button>
+        <span class="ob-step-count" id="obStepCount"></span>
+        <button class="primary" id="obNext">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weekly recap -->
+  <div id="recapModal" class="modal" hidden>
+    <div class="modal-card recap-card">
+      <button class="modal-close" id="recapClose" aria-label="Close">✕</button>
+      <div id="recapBody"></div>
+      <div class="modal-actions"><button class="primary" id="recapShare">Share my week</button></div>
+    </div>
+  </div>
+
+  <!-- Split editor -->
+  <div id="splitModal" class="modal" hidden>
+    <div class="modal-card split-card">
+      <button class="modal-close" id="splitClose" aria-label="Close">✕</button>
+      <h3>Your Split</h3>
+      <p class="modal-note">Build your workout days (Push, Pull, Legs…) with exercises, sets &amp; reps — then schedule them across the week.</p>
+      <div id="splitDays"></div>
+      <button id="splitAddDay" class="ghost small">+ Add a day</button>
+      <h4 class="split-subhead">Weekly schedule</h4>
+      <div id="splitSchedule"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+  <script src="cloud.js"></script>
+</body>
+</html>

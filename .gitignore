@@ -1,0 +1,14 @@
+# Keep the published site limited to the app itself.
+marketing/
+.claude/
+.obsidian/
+
+# Local-only / build artifacts (Pages serves the multi-file index.html directly)
+uplvl.html
+style.prev.css
+
+# OS / editor cruft
+.DS_Store
+Icon?
+*.tmp
+*~
