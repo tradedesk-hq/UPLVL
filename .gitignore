@@ -6,6 +6,7 @@ marketing/
 # Local-only / build artifacts (Pages serves the multi-file index.html directly)
 uplvl.html
 style.prev.css
+landing.prev.html
 
 # Private notes / data — synced to Google Drive, never published to the public repo
 PROJECT-INFO.md
@@ -16,3 +17,6 @@ uplvl-backup.json
 Icon?
 *.tmp
 *~
+
+# Local Netlify folder
+.netlify
