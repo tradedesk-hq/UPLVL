@@ -234,6 +234,7 @@
           <div class="entry-meta" id="journalMeta"></div>
           <div class="editor-toolbar">
             <button id="journalPrompt" class="ghost small">💡 Insert a prompt</button>
+            <button id="journalCard" class="ghost small">🖼️ Save as image / PDF</button>
           </div>
           <textarea id="journalBody" placeholder="What's on your mind today?"></textarea>
           <div class="editor-actions">
@@ -382,6 +383,28 @@
       <button class="modal-close" id="recapClose" aria-label="Close">✕</button>
       <div id="recapBody"></div>
       <div class="modal-actions"><button class="primary" id="recapShare">Share my week</button></div>
+    </div>
+  </div>
+
+  <!-- Morning briefing -->
+  <div id="briefingModal" class="modal" hidden>
+    <div class="modal-card briefing-card">
+      <button class="modal-close" id="briefingClose" aria-label="Close">✕</button>
+      <div id="briefingBody"></div>
+      <div class="modal-actions"><button class="primary" id="briefingStart">Let's go →</button></div>
+    </div>
+  </div>
+
+  <!-- Journal share card (designed image / PDF of an entry) -->
+  <div id="cardModal" class="modal" hidden>
+    <div class="modal-card card-modal">
+      <button class="modal-close" id="cardClose" aria-label="Close">✕</button>
+      <h3 class="card-modal-title">Your entry, made beautiful</h3>
+      <div class="card-canvas-wrap"><canvas id="journalCanvas" width="1080" height="1350"></canvas></div>
+      <div class="modal-actions card-actions">
+        <button class="ghost small" id="cardPdf">📄 Save as PDF</button>
+        <button class="primary" id="cardImg">⬇ Download image</button>
+      </div>
     </div>
   </div>
 

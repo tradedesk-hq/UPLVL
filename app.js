@@ -1179,6 +1179,7 @@ function saveEntry() {
   renderJournalList();
   jSaved.textContent = "Saved ✓";
   setTimeout(() => (jSaved.textContent = ""), 1800);
+  // Designed card (image / PDF) is opened on demand via the toolbar button, not every Save.
 }
 
 // Autosave: anything typed is captured even if the user never clicks Save.
@@ -2576,6 +2577,7 @@ function shareRecap() {
   else copy();
 }
 function maybeShowWeeklyRecap() {
+  if (!document.getElementById("briefingModal").hidden) return; // briefing owns the open-of-day slot
   const wk = weekKey(new Date());
   if (!db.meta.lastRecapWeek) { db.meta.lastRecapWeek = wk; saveLocal(); return; } // first run: no surprise recap
   if (db.meta.lastRecapWeek === wk || !db.meta.onboarded) return;
@@ -2743,6 +2745,238 @@ function toast(msg, kind) {
 }
 
 /* ============================================================
+   MORNING BRIEFING — once a day: a greeting, motivation, + yesterday's growth
+   ============================================================ */
+const MORNING_QUOTES = [
+  "Discipline is just remembering what you actually want.",
+  "You don't rise to your goals. You fall to your systems. Stack one today.",
+  "Motivation is an emotion. Consistency is who you are.",
+  "Boring, repeated, on purpose. That's how it gets built.",
+  "A missed day is data, not a verdict. Run the experiment again.",
+  "Win the morning and the day has to chase you.",
+  "You're not behind. You're early. Keep planting.",
+  "Confidence isn't a feeling — it's evidence you've been showing up.",
+  "Do today what others won't, so tomorrow you can do what others can't.",
+  "Small reps, stupid amounts of times. That's the whole secret.",
+  "The version of you that you want is built on ordinary days like this one.",
+  "Choose the pain that takes you somewhere.",
+  "You can't talk yourself into change. Go collect the proof.",
+  "Show up especially when you don't feel like it — that's the rep that counts.",
+  "Protect the streak. Future you is watching.",
+  "One decision today beats a perfect plan tomorrow.",
+  "Become someone who does hard things. Then just be him.",
+  "The work is the reward. The results are the receipt.",
+  "Don't negotiate with yourself this morning. You already decided.",
+  "Every box you check is a vote for who you're becoming.",
+  "Growth is quiet. Trust the roots before you see the fruit.",
+  "Make it impossible to recognize you in a year.",
+];
+
+function dailyIndex(n) {                 // deterministic pick that changes each calendar day
+  const k = ymd(new Date());
+  let s = 0; for (let i = 0; i < k.length; i++) s = (s * 31 + k.charCodeAt(i)) >>> 0;
+  return s % n;
+}
+
+function buildBriefing() {
+  const h = computeHistory();
+  const lvl = levelInfo(h.rp);
+  const rank = rankForRP(h.rp);
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
+  const sun = hr < 12 ? "☀️" : hr < 18 ? "🌤️" : "🌙";
+  const name = (db.meta.name || "").trim();
+  const quote = MORNING_QUOTES[dailyIndex(MORNING_QUOTES.length)];
+
+  const yKey = ymd(new Date(Date.now() - 86400000));
+  const yday = h.days.find((d) => d.key === yKey);
+  let recapHtml = "";
+  if (yday) {
+    const verdict = yday.complete
+      ? "Perfect day. That's who you are now."
+      : yday.habitsDone > 0 ? "You moved the needle. Build on it."
+      : "Yesterday slipped — today's a clean slate.";
+    recapHtml = `
+      <div class="brief-recap">
+        <div class="brief-recap-h">YESTERDAY'S GROWTH</div>
+        <div class="brief-line"><span>Habits</span><span>${yday.habitsDone}/${yday.habitsTotal}</span></div>
+        <div class="brief-line"><span>XP earned</span><span>+${(yday.earned || 0).toLocaleString()}</span></div>
+        ${yday.questsDone ? `<div class="brief-line"><span>Bonus quests</span><span>${yday.questsDone}</span></div>` : ""}
+        <div class="brief-verdict">${verdict}</div>
+      </div>`;
+  }
+  const standing = `<div class="brief-standing">${h.streak > 0 ? `<span class="brief-streak">🔥 ${h.streak}-day streak</span> · ` : ""}Level ${lvl.level} · ${escapeHtml(rank.label)}</div>`;
+
+  return `
+    <span class="brief-sun">${sun}</span>
+    <div class="brief-greet">${greet}${name ? ", " + escapeHtml(name) : ""}</div>
+    <div class="brief-quote">${escapeHtml(quote)}</div>
+    ${recapHtml}
+    ${standing}`;
+}
+
+function openBriefing() {
+  document.getElementById("briefingBody").innerHTML = buildBriefing();
+  document.getElementById("briefingModal").hidden = false;
+}
+function closeBriefing() { document.getElementById("briefingModal").hidden = true; }
+function maybeShowMorningBriefing() {
+  if (!db.meta.onboarded) return;
+  const today = ymd(new Date());
+  if (db.meta.lastBriefing === today) return;            // already greeted today
+  db.meta.lastBriefing = today; saveLocal();
+  openBriefing();
+}
+document.getElementById("briefingClose").onclick = closeBriefing;
+document.getElementById("briefingStart").onclick = closeBriefing;
+document.getElementById("briefingModal").addEventListener("click", (e) => { if (e.target.id === "briefingModal") closeBriefing(); });
+
+/* ============================================================
+   JOURNAL SHARE CARD — render an entry as a designed image / PDF
+   ============================================================ */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function wrapLines(ctx, text, maxWidth) {
+  const out = [];
+  (text || "").split("\n").forEach((para) => {
+    if (!para.trim()) { out.push(""); return; }
+    let line = "";
+    para.split(/\s+/).forEach((word) => {
+      const test = line ? line + " " + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) { out.push(line); line = word; }
+      else line = test;
+    });
+    if (line) out.push(line);
+  });
+  return out;
+}
+
+function openJournalCard(entry) {
+  if (!entry) return;
+  document.getElementById("cardModal").hidden = false;
+  renderJournalCanvas(entry);
+}
+function closeJournalCard() { document.getElementById("cardModal").hidden = true; }
+
+async function renderJournalCanvas(entry) {
+  const canvas = document.getElementById("journalCanvas");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  try { await document.fonts.ready; } catch (_) {}
+
+  // background + glows
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, "#0C1016"); g.addColorStop(1, "#08090C");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const glow = (x, y, r, color) => {
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0, color); rg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  };
+  glow(170, 130, 540, "rgba(25,195,125,0.15)");
+  glow(W - 130, H - 200, 580, "rgba(77,141,255,0.15)");
+  ctx.strokeStyle = "rgba(230,180,80,0.30)"; ctx.lineWidth = 3;
+  ctx.strokeRect(36, 36, W - 72, H - 72);
+
+  const M = 96;
+  ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+  // header
+  ctx.fillStyle = "#E6B450"; ctx.font = '900 italic 40px Archivo, sans-serif';
+  ctx.fillText("✦", M, 150);
+  ctx.fillStyle = "#F2F5FA"; ctx.font = '900 italic 34px Archivo, sans-serif';
+  ctx.fillText("UPLVL", M + 52, 150);
+  ctx.fillStyle = "#8A93A2"; ctx.font = '500 26px "JetBrains Mono", monospace'; ctx.textAlign = "right";
+  ctx.fillText(new Date(entry.created).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }), W - M, 150);
+  ctx.textAlign = "left";
+  ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(M, 184); ctx.lineTo(W - M, 184); ctx.stroke();
+
+  // decorative quote mark
+  ctx.fillStyle = "rgba(230,180,80,0.15)"; ctx.font = '900 230px Archivo, sans-serif';
+  ctx.fillText("“", M - 16, 388);
+
+  const maxW = W - M * 2;
+  let y = 304;
+  // title
+  ctx.fillStyle = "#FFFFFF"; ctx.font = '800 italic 58px Archivo, sans-serif';
+  wrapLines(ctx, (entry.title || "Untitled").trim(), maxW).slice(0, 3).forEach((ln) => { ctx.fillText(ln, M, y); y += 70; });
+  y += 26;
+  // body (fit to height, ellipsis if it overflows)
+  ctx.fillStyle = "#D5DAE2"; ctx.font = '400 34px Manrope, sans-serif';
+  const lineH = 50, bottomLimit = H - 220;
+  let lines = wrapLines(ctx, (entry.body || "").trim(), maxW);
+  const maxLines = Math.max(1, Math.floor((bottomLimit - y) / lineH));
+  let truncated = false;
+  if (lines.length > maxLines) { lines = lines.slice(0, maxLines); truncated = true; }
+  lines.forEach((ln, i) => {
+    const text = (truncated && i === lines.length - 1) ? ln.replace(/\s+\S*$/, "") + " …" : ln;
+    ctx.fillText(text, M, y); y += lineH;
+  });
+
+  // tags
+  const tags = entryTags(entry);
+  if (tags.length) {
+    let tx = M; const ty = H - 168;
+    ctx.font = '600 24px Manrope, sans-serif';
+    tags.slice(0, 4).forEach((t) => {
+      const label = "#" + t;
+      const w = ctx.measureText(label).width + 36;
+      ctx.fillStyle = "rgba(25,195,125,0.12)"; roundRect(ctx, tx, ty - 31, w, 44, 22); ctx.fill();
+      ctx.strokeStyle = "rgba(25,195,125,0.5)"; ctx.lineWidth = 1.5; roundRect(ctx, tx, ty - 31, w, 44, 22); ctx.stroke();
+      ctx.fillStyle = "#19C37D"; ctx.fillText(label, tx + 18, ty);
+      tx += w + 14;
+    });
+  }
+
+  // footer
+  ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(M, H - 112); ctx.lineTo(W - M, H - 112); ctx.stroke();
+  const hist = computeHistory(); const lvl = levelInfo(hist.rp); const rank = rankForRP(hist.rp);
+  ctx.fillStyle = "#8A93A2"; ctx.font = '500 26px "JetBrains Mono", monospace';
+  ctx.fillText(`LV ${lvl.level} · ${rank.label.toUpperCase()}`, M, H - 68);
+  ctx.fillStyle = "#E6B450"; ctx.textAlign = "right"; ctx.font = '700 italic 28px Archivo, sans-serif';
+  ctx.fillText("Leveling up, one day at a time.", W - M, H - 68);
+  ctx.textAlign = "left";
+}
+
+function downloadCardImage() {
+  document.getElementById("journalCanvas").toBlob((blob) => {
+    if (!blob) { toast("Couldn't make the image"); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "uplvl-journal-" + ymd(new Date()) + ".png";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    toast("Image saved ✓", "up");
+  }, "image/png");
+}
+function cardToPdf() {
+  const data = document.getElementById("journalCanvas").toDataURL("image/png");
+  const w = window.open("", "_blank");
+  if (!w) { toast("Allow pop-ups to save as PDF"); return; }
+  w.document.write(`<!doctype html><html><head><title>UPLVL Journal</title><style>@page{margin:0}html,body{margin:0;background:#08090C}img{width:100%;display:block}</style></head><body><img src="${data}" onload="setTimeout(function(){window.focus();window.print();},150)"></body></html>`);
+  w.document.close();
+}
+
+document.getElementById("cardClose").onclick = closeJournalCard;
+document.getElementById("cardImg").onclick = downloadCardImage;
+document.getElementById("cardPdf").onclick = cardToPdf;
+document.getElementById("cardModal").addEventListener("click", (e) => { if (e.target.id === "cardModal") closeJournalCard(); });
+document.getElementById("journalCard").onclick = () => {
+  const entry = ensureEntry(); writeActiveEntry(entry);
+  if (!entry.title.trim() && !entry.body.trim()) { toast("Write something first ✍️"); return; }
+  save(); renderJournalList();
+  openJournalCard(entry);
+};
+
+/* ============================================================
    INIT
    ============================================================ */
 document.getElementById("todayLabel").textContent = prettyDate(new Date());
@@ -2766,4 +3000,5 @@ try {
   alert("Some saved data was invalid and has been reset. A backup copy was kept on this device.");
 }
 initOnboarding();
+maybeShowMorningBriefing();
 maybeShowWeeklyRecap();

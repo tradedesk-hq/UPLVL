@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  UPLVL — Marketing Landing Page (single self-contained file)
+  ============================================================================
+
+  SUPABASE SETUP (run ONCE in the Supabase SQL editor):
+
+  create table if not exists waitlist (id uuid primary key default gen_random_uuid(), email text not null unique, created_at timestamptz default now());
+  alter table waitlist enable row level security;
+  create policy "anon can join waitlist" on waitlist for insert to anon with check (true);
+
+  This lets anonymous visitors INSERT (join) but NOT read the list.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0e14" />
+  <title>UPLVL — Your life has a rank now.</title>
+  <meta name="description" content="UPLVL is self-improvement with a scoreboard. Fortnite ranked, but for your real life — climb the ranks, defend your streak, and become who you said you'd be. Join the waitlist." />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="UPLVL — Your life has a rank now." />
+  <meta property="og:description" content="Self-improvement with a scoreboard. Climb from Bronze to Unreal. Don't get demoted." />
+  <meta property="og:type" content="website" />
+
+  <!-- Fonts: Archivo (headings) + Manrope (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Supabase JS client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* ===================== TOKENS ===================== */
+    :root {
+      --bg:        #0a0e14;
+      --bg-2:      #0c121b;
+      --surface:   #111824;
+      --surface-2: #151e2c;
+      --border:    rgba(255,255,255,.08);
+      --border-2:  rgba(255,255,255,.14);
+
+      --emerald:   #10b981;
+      --emerald-2: #34d399;
+      --emerald-dk:#059669;
+      --blue:      #2563eb;
+      --blue-2:    #3b82f6;
+      --gold:      #f5c518;
+      --gold-2:    #ffd84d;
+
+      --text:      #eef2f7;
+      --text-dim:  #9aa7b8;
+      --text-mute: #67768a;
+
+      --rank-bronze:   #cd7f32;
+      --rank-silver:   #cbd5e1;
+      --rank-gold:     #f5c518;
+      --rank-plat:     #5eead4;
+      --rank-diamond:  #60a5fa;
+      --rank-unreal:   #c084fc;
+
+      --radius:   18px;
+      --radius-sm:12px;
+      --radius-lg:26px;
+
+      --shadow:   0 24px 60px -28px rgba(0,0,0,.85);
+      --glow-em:  0 0 0 1px rgba(16,185,129,.35), 0 18px 50px -16px rgba(16,185,129,.45);
+
+      --maxw: 1120px;
+      --ease: cubic-bezier(.22,.61,.36,1);
+    }
+
+    /* ===================== RESET ===================== */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Manrope', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 17px;
+      line-height: 1.6;
+      letter-spacing: .1px;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      overflow-x: hidden;
+    }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; }
+
+    /* Background ambience */
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -2;
+      background:
+        radial-gradient(900px 540px at 78% -8%, rgba(16,185,129,.16), transparent 60%),
+        radial-gradient(820px 520px at 8% 6%, rgba(37,99,235,.18), transparent 58%),
+        radial-gradient(900px 700px at 50% 118%, rgba(245,197,24,.07), transparent 60%);
+      pointer-events: none;
+    }
+    body::after {
+      content: "";
+      position: fixed; inset: 0; z-index: -2;
+      background-image:
+        linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(70% 60% at 50% 20%, #000 30%, transparent 100%);
+      pointer-events: none;
+    }
+
+    /* ===================== LAYOUT ===================== */
+    .wrap { width: 100%; max-width: var(--maxw); margin-inline: auto; padding-inline: 20px; }
+    section { position: relative; padding: 78px 0; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: 'Archivo', sans-serif; font-weight: 700;
+      font-size: 12.5px; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--emerald-2);
+      padding: 7px 14px; border-radius: 999px;
+      background: rgba(16,185,129,.08);
+      border: 1px solid rgba(16,185,129,.25);
+    }
+    .section-head { max-width: 720px; margin-bottom: 44px; }
+    h1, h2, h3 { font-family: 'Archivo', sans-serif; line-height: 1.05; letter-spacing: -.02em; margin: 0; }
+    h2 { font-size: clamp(28px, 6vw, 46px); font-weight: 800; }
+    h2 .accent { color: var(--emerald-2); }
+    .lead { color: var(--text-dim); font-size: clamp(16px, 4vw, 19px); max-width: 60ch; }
+
+    .gradient-text {
+      background: linear-gradient(100deg, #fff 0%, #cfeede 38%, var(--emerald-2) 72%, var(--gold) 130%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* ===================== TOP BAR ===================== */
+    .topbar {
+      position: sticky; top: 0; z-index: 60;
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      background: rgba(10,14,20,.55);
+      border-bottom: 1px solid transparent;
+      transition: background .3s var(--ease), border-color .3s var(--ease);
+    }
+    .topbar.scrolled { background: rgba(10,14,20,.82); border-bottom-color: var(--border); }
+    .topbar-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { display: inline-flex; align-items: center; gap: 9px; font-family:'Archivo',sans-serif; font-weight: 900; font-size: 19px; letter-spacing: .02em; }
+    .logo .spark { color: var(--gold); filter: drop-shadow(0 0 8px rgba(245,197,24,.6)); animation: spin 9s linear infinite; }
+    .logo b { background: linear-gradient(95deg, #fff, var(--emerald-2)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color: transparent; }
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* ===================== BUTTONS ===================== */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+      font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 15px;
+      padding: 12px 20px; border-radius: 12px; border: 1px solid transparent;
+      transition: transform .18s var(--ease), box-shadow .25s var(--ease), background .2s, border-color .2s, opacity .2s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px) scale(.99); }
+    .btn-primary {
+      color: #032417;
+      background: linear-gradient(180deg, var(--emerald-2), var(--emerald-dk));
+      box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 14px 30px -12px rgba(16,185,129,.7);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255,255,255,.45) inset, 0 22px 44px -14px rgba(16,185,129,.85); }
+    .btn-ghost {
+      color: var(--text); background: rgba(255,255,255,.04); border-color: var(--border-2);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,.09); transform: translateY(-2px); border-color: rgba(255,255,255,.28); }
+    .btn-sm { padding: 9px 16px; font-size: 13.5px; border-radius: 10px; }
+    .btn-lg { padding: 15px 26px; font-size: 16.5px; border-radius: 14px; }
+    .btn:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--emerald-2); outline-offset: 2px; }
+
+    /* ===================== HERO ===================== */
+    .hero { padding-top: 56px; padding-bottom: 64px; }
+    .hero-grid { display: grid; grid-template-columns: 1fr; gap: 44px; align-items: center; }
+    .hero h1 { font-size: clamp(40px, 11vw, 76px); font-weight: 900; margin-bottom: 18px; }
+    .hero .sub { color: var(--text-dim); font-size: clamp(16.5px, 4.4vw, 21px); max-width: 30ch; margin-bottom: 28px; }
+    .hero .sub strong { color: var(--text); font-weight: 700; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 26px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 13px; font-weight: 600; color: var(--text-dim);
+      padding: 7px 13px; border-radius: 999px;
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+    }
+    .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald-2); box-shadow: 0 0 8px var(--emerald-2); }
+
+    /* Waitlist form */
+    .form-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      max-width: 480px;
+    }
+    .form-card .form-title { font-family:'Archivo',sans-serif; font-weight: 800; font-size: 16px; margin-bottom: 4px; }
+    .form-card .form-note { font-size: 13px; color: var(--text-mute); margin: 0 0 14px; }
+    .waitlist-form { display: flex; flex-direction: column; gap: 10px; }
+    .field-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .waitlist-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .waitlist-form input[type="email"] {
+      flex: 1 1 200px; min-width: 0;
+      background: rgba(0,0,0,.35); color: var(--text);
+      border: 1px solid var(--border-2); border-radius: 12px;
+      padding: 14px 16px; font-size: 16px; font-family: inherit;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .waitlist-form input::placeholder { color: var(--text-mute); }
+    .waitlist-form input:focus { border-color: var(--emerald-2); box-shadow: 0 0 0 3px rgba(16,185,129,.18); outline: none; }
+    .waitlist-form .btn-primary { flex: 0 0 auto; }
+    .form-msg { font-size: 13.5px; min-height: 1.2em; margin: 2px 2px 0; }
+    .form-msg.error { color: #fca5a5; }
+    .form-msg.ok { color: var(--emerald-2); }
+    .form-fine { font-size: 12px; color: var(--text-mute); margin: 8px 2px 0; }
+
+    .btn[aria-busy="true"] { opacity: .8; pointer-events: none; }
+    .btn .spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(3,36,23,.35); border-top-color: #032417; animation: spin .7s linear infinite; display: none; }
+    .btn[aria-busy="true"] .spinner { display: inline-block; }
+    .btn[aria-busy="true"] .btn-label { opacity: .7; }
+
+    /* Success state */
+    .joined-state { text-align: center; padding: 8px 4px 4px; }
+    .joined-state .big { font-family:'Archivo',sans-serif; font-weight: 900; font-size: 24px; margin-bottom: 6px; }
+    .joined-state .big .gradient-text { display:inline; }
+    .joined-state p { color: var(--text-dim); font-size: 14.5px; margin: 0 0 14px; }
+    .joined-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family:'Archivo',sans-serif; font-weight: 800; font-size: 13px; letter-spacing:.04em;
+      color: var(--gold); padding: 8px 14px; border-radius: 999px;
+      background: rgba(245,197,24,.1); border: 1px solid rgba(245,197,24,.3);
+      margin-bottom: 14px;
+    }
+
+    /* ===================== HERO VISUAL (game card) ===================== */
+    .game-card {
+      position: relative;
+      background: linear-gradient(165deg, var(--surface-2), var(--bg-2));
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .game-card::before {
+      content:""; position:absolute; inset:0;
+      background: radial-gradient(420px 200px at 85% 0%, rgba(16,185,129,.16), transparent 60%);
+      pointer-events:none;
+    }
+    .gc-top { display:flex; align-items:center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .gc-avatar { display:flex; align-items:center; gap: 12px; }
+    .gc-ava {
+      width: 46px; height: 46px; border-radius: 14px; flex: 0 0 auto;
+      background: linear-gradient(145deg, var(--blue-2), var(--emerald-dk));
+      display:flex; align-items:center; justify-content:center;
+      font-family:'Archivo',sans-serif; font-weight:900; font-size:18px; color:#fff;
+      box-shadow: 0 8px 20px -8px rgba(37,99,235,.7);
+    }
+    .gc-name { font-family:'Archivo',sans-serif; font-weight:800; font-size:15px; }
+    .gc-sub { font-size: 12px; color: var(--text-mute); }
+    .gc-rank-chip {
+      display:inline-flex; align-items:center; gap:7px;
+      font-family:'Archivo',sans-serif; font-weight:800; font-size:12.5px; letter-spacing:.05em;
+      color: var(--rank-diamond); padding: 7px 12px; border-radius: 999px;
+      background: rgba(96,165,250,.12); border: 1px solid rgba(96,165,250,.35);
+      box-shadow: 0 0 18px -4px rgba(96,165,250,.5);
+    }
+    .gc-rank-chip svg { filter: drop-shadow(0 0 6px rgba(96,165,250,.8)); }
+
+    /* Level + XP bar */
+    .gc-level-row { display:flex; align-items:baseline; justify-content: space-between; margin-bottom: 8px; }
+    .gc-level { font-family:'Archivo',sans-serif; font-weight:900; font-size: 14px; }
+    .gc-level b { color: var(--gold); }
+    .gc-xp-text { font-size: 12px; color: var(--text-mute); }
+    .xpbar { height: 12px; border-radius: 999px; background: rgba(255,255,255,.07); overflow: hidden; border: 1px solid var(--border); position: relative; }
+    .xpbar > i {
+      display:block; height: 100%; width: 0;
+      background: linear-gradient(90deg, var(--emerald-dk), var(--emerald-2) 70%, var(--gold));
+      border-radius: 999px;
+      box-shadow: 0 0 14px -2px rgba(16,185,129,.9);
+      animation: fillxp 2.1s var(--ease) .4s forwards;
+    }
+    .xpbar > i::after {
+      content:""; position:absolute; top:0; bottom:0; width: 40%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+      transform: translateX(-120%);
+      animation: sheen 2.6s var(--ease) 1.6s infinite;
+    }
+
+    /* Habit checklist */
+    .gc-habits { margin: 18px 0 16px; display: grid; gap: 8px; }
+    .habit {
+      display:flex; align-items:center; gap: 11px;
+      background: rgba(255,255,255,.03); border: 1px solid var(--border);
+      border-radius: 12px; padding: 11px 13px; font-size: 14px; font-weight: 600;
+    }
+    .habit .tick {
+      width: 22px; height: 22px; border-radius: 7px; flex:0 0 auto;
+      display:flex; align-items:center; justify-content:center;
+      background: linear-gradient(145deg, var(--emerald-2), var(--emerald-dk));
+      color: #032417; box-shadow: 0 6px 14px -6px rgba(16,185,129,.8);
+    }
+    .habit.todo .tick { background: rgba(255,255,255,.06); box-shadow:none; border:1px dashed var(--border-2); }
+    .habit .xp { margin-left: auto; font-size: 11.5px; font-weight: 800; color: var(--emerald-2); font-family:'Archivo',sans-serif; }
+    .habit.todo .xp { color: var(--text-mute); }
+
+    .gc-footer { display:flex; align-items:center; justify-content: space-between; gap: 10px; padding-top: 4px; }
+    .streak {
+      display:inline-flex; align-items:center; gap: 7px;
+      font-family:'Archivo',sans-serif; font-weight:800; font-size: 13px; color: var(--gold);
+    }
+    .streak .flame { animation: flicker 1.8s ease-in-out infinite; }
+    .freeze-pill { font-size: 11.5px; font-weight: 700; color: var(--rank-diamond); background: rgba(96,165,250,.1); border:1px solid rgba(96,165,250,.3); padding: 5px 10px; border-radius: 999px; }
+
+    /* Floating level-up toast on card */
+    .levelup-toast {
+      position: absolute; top: 14px; right: 14px; z-index: 3;
+      display:flex; align-items:center; gap:8px;
+      font-family:'Archivo',sans-serif; font-weight:800; font-size:12px; letter-spacing:.04em;
+      color:#032417; padding: 8px 12px; border-radius: 999px;
+      background: linear-gradient(180deg, var(--gold-2), var(--gold));
+      box-shadow: 0 10px 26px -10px rgba(245,197,24,.8);
+      opacity: 0; transform: translateY(-6px) scale(.9);
+      animation: pop 700ms var(--ease) 2.4s forwards, floaty 3s ease-in-out 3.2s infinite;
+    }
+
+    /* ===================== PROBLEM ===================== */
+    .problem { padding-top: 26px; }
+    .problem-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    .beat {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.012));
+      border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;
+    }
+    .beat .strike { font-family:'Archivo',sans-serif; font-weight:800; font-size: clamp(19px,5vw,24px); margin-bottom: 8px; line-height:1.18; }
+    .beat .strike .x { color:#f87171; }
+    .beat p { color: var(--text-dim); font-size: 15px; margin: 0; }
+    .problem-punch {
+      margin-top: 26px; text-align: center;
+      font-family:'Archivo',sans-serif; font-weight: 900;
+      font-size: clamp(22px, 6vw, 38px); line-height: 1.1; letter-spacing: -.02em;
+    }
+
+    /* ===================== HOW IT WORKS ===================== */
+    .steps { display: grid; gap: 16px; grid-template-columns: 1fr; counter-reset: step; }
+    .step {
+      position: relative; counter-increment: step;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px 22px 22px;
+      overflow: hidden;
+    }
+    .step::before {
+      content: "0" counter(step);
+      position: absolute; top: 12px; right: 16px;
+      font-family:'Archivo',sans-serif; font-weight: 900; font-size: 52px;
+      color: rgba(255,255,255,.05); line-height: 1;
+    }
+    .step .ic {
+      width: 44px; height: 44px; border-radius: 13px; margin-bottom: 14px;
+      display:flex; align-items:center; justify-content:center;
+      background: linear-gradient(145deg, rgba(16,185,129,.18), rgba(37,99,235,.18));
+      border: 1px solid var(--border-2); color: var(--emerald-2);
+    }
+    .step h3 { font-size: 18.5px; font-weight: 800; margin-bottom: 7px; }
+    .step p { color: var(--text-dim); font-size: 14.5px; margin: 0; }
+    .step .connector { display:none; }
+
+    /* ===================== FEATURES ===================== */
+    .features-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    .feature {
+      position: relative;
+      background: linear-gradient(180deg, var(--surface), var(--bg-2));
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; transition: transform .25s var(--ease), border-color .25s, box-shadow .25s;
+      overflow: hidden;
+    }
+    .feature::after {
+      content:""; position:absolute; inset:0; border-radius: inherit;
+      background: radial-gradient(300px 140px at 80% -10%, rgba(16,185,129,.14), transparent 60%);
+      opacity: 0; transition: opacity .3s; pointer-events:none;
+    }
+    .feature:hover { transform: translateY(-5px); border-color: var(--border-2); box-shadow: var(--shadow); }
+    .feature:hover::after { opacity: 1; }
+    .feature .ic {
+      width: 48px; height: 48px; border-radius: 14px; margin-bottom: 16px;
+      display:flex; align-items:center; justify-content:center; font-size: 22px;
+      background: rgba(255,255,255,.04); border: 1px solid var(--border-2);
+    }
+    .feature h3 { font-size: 18px; font-weight: 800; margin-bottom: 7px; }
+    .feature p { color: var(--text-dim); font-size: 14.5px; margin: 0; }
+    .feature .tag {
+      position:absolute; top: 18px; right: 18px;
+      font-family:'Archivo',sans-serif; font-weight: 800; font-size: 10.5px; letter-spacing: .08em;
+      color: var(--gold); background: rgba(245,197,24,.1);
+      border: 1px solid rgba(245,197,24,.3); padding: 4px 9px; border-radius: 999px;
+    }
+
+    /* Rank ladder inside feature */
+    .ladder { display:flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .rank-tier {
+      font-family:'Archivo',sans-serif; font-weight: 800; font-size: 11px; letter-spacing:.04em;
+      padding: 5px 9px; border-radius: 8px; border: 1px solid var(--border-2);
+      background: rgba(255,255,255,.03);
+    }
+    .rank-tier.bronze  { color: var(--rank-bronze);  border-color: rgba(205,127,50,.4); }
+    .rank-tier.silver  { color: var(--rank-silver);  border-color: rgba(203,213,225,.35); }
+    .rank-tier.gold    { color: var(--rank-gold);    border-color: rgba(245,197,24,.4); }
+    .rank-tier.plat    { color: var(--rank-plat);    border-color: rgba(94,234,212,.4); }
+    .rank-tier.diamond { color: var(--rank-diamond); border-color: rgba(96,165,250,.4); }
+    .rank-tier.unreal  { color: var(--rank-unreal);  border-color: rgba(192,132,252,.45); box-shadow: 0 0 16px -6px rgba(192,132,252,.7); }
+
+    /* Mini heatmap inside feature */
+    .heat { display:grid; grid-template-columns: repeat(14, 1fr); gap: 3px; margin-top: 14px; max-width: 240px; }
+    .heat i { aspect-ratio: 1; border-radius: 2.5px; background: rgba(255,255,255,.05); }
+    .heat i.l1 { background: rgba(16,185,129,.28); }
+    .heat i.l2 { background: rgba(16,185,129,.5); }
+    .heat i.l3 { background: rgba(16,185,129,.72); }
+    .heat i.l4 { background: var(--emerald-2); box-shadow: 0 0 6px -1px var(--emerald-2); }
+
+    /* ===================== 4 REASONS ===================== */
+    .reasons { background:
+      linear-gradient(180deg, transparent, rgba(37,99,235,.05), transparent); }
+    .reasons-grid { display:grid; gap: 14px; grid-template-columns: 1fr; }
+    .reason {
+      text-align: center;
+      background: rgba(255,255,255,.025); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 26px 18px;
+      transition: transform .2s var(--ease), border-color .2s;
+    }
+    .reason:hover { transform: translateY(-4px); border-color: var(--border-2); }
+    .reason .num { font-family:'Archivo',sans-serif; font-weight: 900; font-size: 30px; margin-bottom: 8px; }
+    .reason:nth-child(1) .num { color: var(--emerald-2); }
+    .reason:nth-child(2) .num { color: var(--gold); }
+    .reason:nth-child(3) .num { color: var(--rank-unreal); }
+    .reason:nth-child(4) .num { color: var(--blue-2); }
+    .reason h3 { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+    .reason p { color: var(--text-dim); font-size: 13.5px; margin: 0; }
+
+    /* ===================== FINAL CTA ===================== */
+    .final {
+      text-align: center;
+    }
+    .final-card {
+      position: relative;
+      background: linear-gradient(165deg, rgba(16,185,129,.12), rgba(37,99,235,.1) 60%, rgba(245,197,24,.06));
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-lg);
+      padding: 48px 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .final-card::before {
+      content:""; position:absolute; inset:0;
+      background: radial-gradient(520px 240px at 50% -10%, rgba(16,185,129,.25), transparent 60%);
+      pointer-events:none;
+    }
+    .final-card h2 { margin-bottom: 12px; }
+    .final-card .lead { margin: 0 auto 26px; }
+    .final-card .form-card { margin: 0 auto; }
+    .final-card .waitlist-form { align-items: stretch; }
+
+    /* ===================== FOOTER ===================== */
+    footer { padding: 44px 0 56px; border-top: 1px solid var(--border); text-align: center; }
+    footer .logo { justify-content: center; margin-bottom: 12px; }
+    footer .tag { color: var(--text-dim); font-size: 14px; margin: 0 0 6px; }
+    footer .micro { color: var(--text-mute); font-size: 12.5px; margin: 0; }
+    footer .foot-links { display:flex; gap: 16px; justify-content:center; margin-top: 16px; flex-wrap: wrap; }
+    footer .foot-links a { font-size: 13px; color: var(--text-dim); border-bottom: 1px solid transparent; transition: color .2s, border-color .2s; }
+    footer .foot-links a:hover { color: var(--text); border-bottom-color: var(--emerald-2); }
+
+    /* ===================== ENTRANCE ANIM ===================== */
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+    .reveal.in { opacity: 1; transform: none; }
+    .reveal.d1 { transition-delay: .08s; }
+    .reveal.d2 { transition-delay: .16s; }
+    .reveal.d3 { transition-delay: .24s; }
+    .reveal.d4 { transition-delay: .32s; }
+
+    /* ===================== KEYFRAMES ===================== */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fillxp { from { width: 0; } to { width: 72%; } }
+    @keyframes sheen { 0% { transform: translateX(-120%); } 55%,100% { transform: translateX(320%); } }
+    @keyframes flicker { 0%,100% { transform: scale(1) rotate(-2deg); } 50% { transform: scale(1.12) rotate(3deg); } }
+    @keyframes pop { to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes confettiFall { to { transform: translateY(120px) rotate(540deg); opacity: 0; } }
+
+    /* Confetti */
+    .confetti { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+    .confetti i {
+      position:absolute; top:-12px; width: 8px; height: 12px; border-radius: 2px;
+      opacity: .9; animation: confettiFall 1.4s ease-in forwards;
+    }
+
+    /* ===================== RESPONSIVE ===================== */
+    @media (min-width: 720px) {
+      .problem-grid { grid-template-columns: repeat(3, 1fr); }
+      .steps { grid-template-columns: repeat(2, 1fr); }
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .reasons-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (min-width: 960px) {
+      section { padding: 96px 0; }
+      .hero { padding-top: 70px; }
+      .hero-grid { grid-template-columns: 1.05fr .95fr; gap: 56px; }
+      .steps { grid-template-columns: repeat(4, 1fr); }
+      .features-grid { grid-template-columns: repeat(3, 1fr); }
+      .feature.span2 { grid-column: span 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+      .reveal { opacity: 1; transform: none; }
+      .xpbar > i { width: 72%; }
+      .levelup-toast { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============ TOP BAR ============ -->
+  <header class="topbar" id="topbar">
+    <div class="wrap topbar-inner">
+      <a class="logo" href="#top" aria-label="UPLVL home">
+        <span class="spark" aria-hidden="true">✦</span> <b>UPLVL</b>
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost btn-sm" href="./index.html">Try the app</a>
+        <a class="btn btn-primary btn-sm" href="#waitlist">Join waitlist</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ============ HERO ============ -->
+    <section class="hero" aria-labelledby="hero-h">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow reveal in">✦ Self-Development OS · Now in private beta</span>
+          <h1 id="hero-h" class="reveal in">
+            Your life has a <span class="gradient-text">rank</span> now.
+          </h1>
+          <p class="sub reveal in d1">
+            Self-improvement with a scoreboard. <strong>Fortnite ranked, but for your real life</strong> — climb the ladder, defend your streak, and finally become who you said you'd be.
+          </p>
+
+          <div class="badges reveal in d2">
+            <span class="chip"><span class="dot"></span> Climb Bronze → Unreal</span>
+            <span class="chip"><span class="dot"></span> Get demoted if you slack</span>
+            <span class="chip"><span class="dot"></span> Streak freezes included</span>
+          </div>
+
+          <!-- HERO WAITLIST FORM -->
+          <div class="form-card reveal in d3" data-waitlist>
+            <p class="form-title">Be first when UPLVL drops.</p>
+            <p class="form-note">Join the waitlist for early access + a founding-member rank badge.</p>
+
+            <form class="waitlist-form" novalidate>
+              <label for="email-hero">Email address</label>
+              <div class="field-row">
+                <input id="email-hero" name="email" type="email" inputmode="email"
+                       autocomplete="email" placeholder="you@email.com" required />
+                <button type="submit" class="btn btn-primary">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span class="btn-label">Claim my spot</span>
+                </button>
+              </div>
+              <p class="form-msg" role="status" aria-live="polite"></p>
+            </form>
+            <p class="form-fine">No spam. One email when we launch. Unsubscribe anytime.</p>
+          </div>
+        </div>
+
+        <!-- HERO VISUAL: gamified card -->
+        <aside class="game-card reveal in d2" aria-label="Example player card" role="img">
+          <span class="levelup-toast" aria-hidden="true">✦ LEVEL UP!</span>
+          <div class="gc-top">
+            <div class="gc-avatar">
+              <span class="gc-ava">JX</span>
+              <span>
+                <span class="gc-name">Jordan_X</span><br />
+                <span class="gc-sub">Day 64 · 6:41 AM check-in</span>
+              </span>
+            </div>
+            <span class="gc-rank-chip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.6 6.6L22 9.3l-5 4.6 1.4 7L12 17.8 5.6 20.9 7 13.9l-5-4.6 7.4-.7z"/></svg>
+              DIAMOND II
+            </span>
+          </div>
+
+          <div class="gc-level-row">
+            <span class="gc-level">Level <b>27</b></span>
+            <span class="gc-xp-text">7,240 / 10,000 XP</span>
+          </div>
+          <div class="xpbar"><i></i></div>
+
+          <div class="gc-habits">
+            <div class="habit">
+              <span class="tick" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </span>
+              Morning workout <span class="xp">+50 XP</span>
+            </div>
+            <div class="habit">
+              <span class="tick" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </span>
+              Read 10 pages <span class="xp">+30 XP</span>
+            </div>
+            <div class="habit todo">
+              <span class="tick" aria-hidden="true"></span>
+              Evening journal <span class="xp">+30 XP</span>
+            </div>
+          </div>
+
+          <div class="gc-footer">
+            <span class="streak"><span class="flame" aria-hidden="true">🔥</span> 64-day streak · 2.0× XP</span>
+            <span class="freeze-pill">❄ 3 freezes</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ PROBLEM ============ -->
+    <section class="problem" aria-labelledby="problem-h">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow">The problem</span>
+          <h2 id="problem-h" style="margin-top:16px;">Every habit app lets you <span class="accent">lie to yourself.</span></h2>
+        </div>
+
+        <div class="problem-grid">
+          <div class="beat reveal d1">
+            <div class="strike"><span class="x">✕</span> Streaks that only go up</div>
+            <p>are participation trophies. If nothing can be lost, nothing's really at stake — and your brain knows it.</p>
+          </div>
+          <div class="beat reveal d2">
+            <div class="strike"><span class="x">✕</span> Fake it till you forget it</div>
+            <p>Tap a checkbox, skip the work. Most trackers reward the tap, not the truth. The number lies for you.</p>
+          </div>
+          <div class="beat reveal d3">
+            <div class="strike"><span class="x">✕</span> Numbers without meaning</div>
+            <p>A pile of stats nobody competes for. No status, no rank, no reason to show up when motivation dips.</p>
+          </div>
+        </div>
+
+        <p class="problem-punch reveal d2">
+          UPLVL has <span class="gradient-text">teeth.</span><br />Your rank reflects who you've <em>actually</em> been.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ HOW IT WORKS ============ -->
+    <section aria-labelledby="how-h">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow">How it works</span>
+          <h2 id="how-h" style="margin-top:16px;">The daily loop you'll <span class="accent">actually</span> want to run.</h2>
+          <p class="lead" style="margin-top:14px;">Four moves a day. Two minutes. The compounding does the rest.</p>
+        </div>
+
+        <div class="steps">
+          <article class="step reveal d1">
+            <div class="ic" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+            <h3>Check your habits</h3>
+            <p>Tick today's list — workout, reading, prayer, whatever your build is. One clean checklist.</p>
+          </article>
+
+          <article class="step reveal d2">
+            <div class="ic" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>
+            </div>
+            <h3>Earn XP &amp; level up</h3>
+            <p>Every action pays out XP. Levels follow an accelerating curve — momentum gets rewarded.</p>
+          </article>
+
+          <article class="step reveal d3">
+            <div class="ic" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V10m6 11V4m6 17v-7m6 7V8"/></svg>
+            </div>
+            <h3>Climb the rank ladder</h3>
+            <p>Consistency promotes you up the tiers. Slack off and you get demoted — status you can lose.</p>
+          </article>
+
+          <article class="step reveal d4">
+            <div class="ic" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3>Defend your streak</h3>
+            <p>Multipliers stack as you go. A streak freeze protects you — one bad day won't erase months.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FEATURES ============ -->
+    <section aria-labelledby="feat-h">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow">The arsenal</span>
+          <h2 id="feat-h" style="margin-top:16px;">Everything you need to <span class="accent">out-level</span> yesterday.</h2>
+          <p class="lead" style="margin-top:14px;">One operating system for identity, progression, and accountability.</p>
+        </div>
+
+        <div class="features-grid">
+          <article class="feature span2 reveal d1">
+            <span class="tag">SIGNATURE</span>
+            <div class="ic" aria-hidden="true">🏆</div>
+            <h3>The Rank Ladder</h3>
+            <p>Promote and get demoted across six tiers. Your rank is earned, defended, and impossible to fake.</p>
+            <div class="ladder" aria-hidden="true">
+              <span class="rank-tier bronze">BRONZE</span>
+              <span class="rank-tier silver">SILVER</span>
+              <span class="rank-tier gold">GOLD</span>
+              <span class="rank-tier plat">PLATINUM</span>
+              <span class="rank-tier diamond">DIAMOND</span>
+              <span class="rank-tier unreal">UNREAL</span>
+            </div>
+          </article>
+
+          <article class="feature reveal d2">
+            <div class="ic" aria-hidden="true">⚡</div>
+            <h3>XP &amp; Levels</h3>
+            <p>An accelerating curve that turns small daily wins into a number that genuinely feels good to grow.</p>
+          </article>
+
+          <article class="feature reveal d3">
+            <div class="ic" aria-hidden="true">🔥</div>
+            <h3>Streaks &amp; Freezes</h3>
+            <p>Multipliers reward consistency. Streak freezes protect you so a single off day never wipes you out.</p>
+          </article>
+
+          <article class="feature reveal d1">
+            <div class="ic" aria-hidden="true">🟩</div>
+            <h3>Consistency Heatmap</h3>
+            <p>A GitHub-style grid — undeniable, visual proof of exactly who you've been all year.</p>
+            <div class="heat" aria-hidden="true" id="heat"></div>
+          </article>
+
+          <article class="feature reveal d2">
+            <div class="ic" aria-hidden="true">🎯</div>
+            <h3>Bonus Quests &amp; Boss Fights</h3>
+            <p>Random daily quests drop extra XP. Boss-fight weeks let you stake XP on a real challenge.</p>
+          </article>
+
+          <article class="feature reveal d3">
+            <div class="ic" aria-hidden="true">📖</div>
+            <h3>Journal · Bible · Insights</h3>
+            <p>Prompted journaling and end-of-day review, a Bible reading tracker, plus a trend dashboard, achievements, and a weekly Wrapped-style recap.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4 REASONS ============ -->
+    <section class="reasons" aria-labelledby="reasons-h">
+      <div class="wrap">
+        <div class="section-head reveal" style="max-width:760px;">
+          <span class="eyebrow">Why it sticks</span>
+          <h2 id="reasons-h" style="margin-top:16px;">Built on the <span class="accent">4 reasons</span> you open an app every day.</h2>
+          <p class="lead" style="margin-top:14px;">Most habit apps nail one. UPLVL is engineered on all four.</p>
+        </div>
+
+        <div class="reasons-grid">
+          <div class="reason reveal d1">
+            <div class="num">01</div>
+            <h3>Progress</h3>
+            <p>XP and levels make growth visible. You can feel yourself getting somewhere.</p>
+          </div>
+          <div class="reason reveal d2">
+            <div class="num">02</div>
+            <h3>Status</h3>
+            <p>A rank you can climb — or lose. Identity on the line creates real pull.</p>
+          </div>
+          <div class="reason reveal d3">
+            <div class="num">03</div>
+            <h3>Rewards</h3>
+            <p>Quests, loot, and surprise XP. The dopamine works <em>for</em> your goals.</p>
+          </div>
+          <div class="reason reveal d4">
+            <div class="num">04</div>
+            <h3>Accountability</h3>
+            <p>Streaks and a heatmap that don't lie. Proof of who you've actually been.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FINAL CTA ============ -->
+    <section class="final" id="waitlist" aria-labelledby="final-h">
+      <div class="wrap">
+        <div class="final-card reveal">
+          <span class="eyebrow">Last call</span>
+          <h2 id="final-h" style="margin-top:16px;">Stop tracking. <span class="gradient-text">Start ranking up.</span></h2>
+          <p class="lead">Join the waitlist and be first in line when UPLVL drops. Early members get a founding-member badge and a head start on the ladder.</p>
+
+          <!-- FINAL WAITLIST FORM -->
+          <div class="form-card" data-waitlist>
+            <form class="waitlist-form" novalidate>
+              <label for="email-final">Email address</label>
+              <div class="field-row">
+                <input id="email-final" name="email" type="email" inputmode="email"
+                       autocomplete="email" placeholder="you@email.com" required />
+                <button type="submit" class="btn btn-primary btn-lg">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span class="btn-label">Join the waitlist</span>
+                </button>
+              </div>
+              <p class="form-msg" role="status" aria-live="polite"></p>
+            </form>
+            <p class="form-fine">No spam. One email when we launch. Built for people who actually want to change.</p>
+          </div>
+
+          <div style="margin-top:22px;">
+            <a class="btn btn-ghost" href="./index.html">See it live →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <div class="wrap">
+      <a class="logo" href="#top" aria-label="UPLVL home"><span class="spark" aria-hidden="true">✦</span> <b>UPLVL</b></a>
+      <p class="tag">Self-improvement, with a scoreboard.</p>
+      <p class="micro">Built for people who actually want to change.</p>
+      <nav class="foot-links" aria-label="Footer">
+        <a href="#waitlist">Join waitlist</a>
+        <a href="./index.html">Try the app</a>
+        <a href="#top">Back to top</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    /* ================= CONFIG ================= */
+    const SUPABASE_URL = "https://qefmkwccljnvrjdipmpp.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_2Nl3xTRq_9-EUZqLwtUK1A_MPROFBUj";
+    const LS_KEY = "uplvl_waitlisted";
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    /* Lazily create the Supabase client (so a CDN hiccup never crashes the page). */
+    let _sb = null;
+    function getClient() {
+      if (_sb) return _sb;
+      if (typeof supabase === "undefined" || !supabase.createClient) return null;
+      _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      return _sb;
+    }
+
+    /* ================= TOP BAR SCROLL STATE ================= */
+    const topbar = document.getElementById("topbar");
+    const onScroll = () => topbar.classList.toggle("scrolled", window.scrollY > 8);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+
+    /* ================= ENTRANCE REVEALS ================= */
+    (function () {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const items = document.querySelectorAll(".reveal:not(.in)");
+      if (reduce || !("IntersectionObserver" in window)) {
+        items.forEach(el => el.classList.add("in"));
+        return;
+      }
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+        });
+      }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+      items.forEach(el => io.observe(el));
+    })();
+
+    /* ================= MINI HEATMAP (decorative) ================= */
+    (function () {
+      const heat = document.getElementById("heat");
+      if (!heat) return;
+      const cells = 14 * 7;
+      const levels = ["", "l1", "l2", "l3", "l4"];
+      let html = "";
+      for (let i = 0; i < cells; i++) {
+        // weighted toward filled, with a few gaps for realism
+        const r = Math.random();
+        let cls;
+        if (r < 0.12) cls = "";
+        else if (r < 0.3) cls = "l1";
+        else if (r < 0.52) cls = "l2";
+        else if (r < 0.78) cls = "l3";
+        else cls = "l4";
+        html += `<i class="${cls}"></i>`;
+      }
+      heat.innerHTML = html;
+    })();
+
+    /* ================= WAITLIST FORMS ================= */
+    const cards = Array.from(document.querySelectorAll("[data-waitlist]"));
+
+    function confettiBurst(host) {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduce) return;
+      const colors = ["#10b981", "#34d399", "#f5c518", "#60a5fa", "#c084fc"];
+      const layer = document.createElement("div");
+      layer.className = "confetti";
+      for (let i = 0; i < 24; i++) {
+        const p = document.createElement("i");
+        p.style.left = Math.random() * 100 + "%";
+        p.style.background = colors[i % colors.length];
+        p.style.animationDelay = (Math.random() * 0.25) + "s";
+        p.style.transform = `rotate(${Math.random() * 360}deg)`;
+        layer.appendChild(p);
+      }
+      host.style.position = host.style.position || "relative";
+      host.appendChild(layer);
+      setTimeout(() => layer.remove(), 1800);
+    }
+
+    function renderJoined(card, opts) {
+      opts = opts || {};
+      const already = !!opts.already;
+      card.innerHTML = `
+        <div class="joined-state">
+          <span class="joined-badge">✦ ${already ? "Already locked in" : "Founding member"}</span>
+          <div class="big">${already
+            ? `You're already on the list <span aria-hidden="true">✓</span>`
+            : `You're on the list <span class="gradient-text">🎉</span>`}</div>
+          <p>${already
+            ? "We've got your email. Watch your inbox — you'll be among the first invited."
+            : "Spot claimed. We'll email you the moment UPLVL goes live. Time to start climbing."}</p>
+          <a class="btn btn-ghost btn-sm" href="./index.html">Explore the app →</a>
+        </div>`;
+      if (!already) confettiBurst(card);
+    }
+
+    function setBusy(btn, busy) {
+      if (!btn) return;
+      btn.setAttribute("aria-busy", busy ? "true" : "false");
+      btn.disabled = busy;
+    }
+
+    function showMsg(msgEl, text, kind) {
+      if (!msgEl) return;
+      msgEl.textContent = text || "";
+      msgEl.className = "form-msg" + (kind ? " " + kind : "");
+    }
+
+    function isDuplicateError(err) {
+      if (!err) return false;
+      const code = (err.code || "").toString();
+      const msg = (err.message || "").toLowerCase();
+      return code === "23505" || msg.includes("duplicate") || msg.includes("unique");
+    }
+
+    // If a returning visitor already joined, show joined state on load.
+    if (localStorage.getItem(LS_KEY) === "1") {
+      cards.forEach(card => renderJoined(card, { already: true }));
+    }
+
+    cards.forEach((card) => {
+      const form = card.querySelector(".waitlist-form");
+      if (!form) return;
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const input = form.querySelector('input[type="email"]');
+        const btn = form.querySelector('button[type="submit"]');
+        const msgEl = form.querySelector(".form-msg");
+        const email = (input.value || "").trim().toLowerCase();
+
+        // Validate
+        if (!EMAIL_RE.test(email)) {
+          showMsg(msgEl, "Please enter a valid email address.", "error");
+          input.focus();
+          return;
+        }
+
+        const client = getClient();
+        if (!client) {
+          showMsg(msgEl, "Couldn't reach the network. Check your connection and try again.", "error");
+          return;
+        }
+
+        showMsg(msgEl, "", null);
+        setBusy(btn, true);
+
+        try {
+          const { error } = await client.from("waitlist").insert({ email });
+
+          if (error) {
+            if (isDuplicateError(error)) {
+              localStorage.setItem(LS_KEY, "1");
+              // Mirror joined state to all forms.
+              cards.forEach(c => renderJoined(c, { already: true }));
+              return;
+            }
+            throw error;
+          }
+
+          // Success
+          localStorage.setItem(LS_KEY, "1");
+          renderJoined(card, { already: false });
+          cards.filter(c => c !== card).forEach(c => renderJoined(c, { already: true }));
+        } catch (err) {
+          console.error("Waitlist insert failed:", err);
+          setBusy(btn, false);
+          showMsg(msgEl, "Something went wrong on our end. Your email's still here — try again?", "error");
+          // email intentionally left in the field
+        }
+      });
+    });
+  </script>
+</body>
+</html>
