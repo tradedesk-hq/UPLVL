@@ -42,9 +42,9 @@ const SCORING = {
 
 // Verification gate. When true: timed habits must be completed via the timer and
 // checkable habits must capture a photo (tapping the box can only un-complete).
-// ON — timed habits complete via the stopwatch, photo habits via a captured photo.
-// Flip back to false for simple tap-to-complete (no timer/photo required).
-const REQUIRE_VERIFICATION = true;
+// OFF for now — simple tap-to-complete (no timer/photo required).
+// Flip back to true to require: timed habits via the stopwatch, others via a photo.
+const REQUIRE_VERIFICATION = false;
 
 /* ---------- daily bonus quest pool ----------
    Add as many as you like — each needs a unique id. The app deterministically
