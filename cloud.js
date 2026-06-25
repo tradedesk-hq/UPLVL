@@ -36,10 +36,24 @@ async function initCloud() {
   });
 
   updateSyncUI();
-  // Deep link: /index.html?signin=1 (or #signin) opens the sign-in dialog straight away.
+  // Deep links:
+  //  ?invite=CODE → stash the invite (survives signup/email-confirm) and, if not
+  //                 signed in, open the account dialog so the new user signs up first.
+  //  ?signin=1 / #signin → just open the sign-in dialog.
   try {
     const q = new URLSearchParams(location.search);
-    if (!cloudUser && (q.get("signin") === "1" || location.hash === "#signin")) openAcct();
+    const invite = q.get("invite");
+    if (invite) {
+      try { localStorage.setItem("uplvl_pending_invite", invite.toUpperCase().replace(/[^A-Z0-9]/g, "")); } catch (e) {}
+      try { history.replaceState({}, "", location.pathname); } catch (e) {} // clean the URL; code is saved
+      if (!cloudUser) {
+        openAcct();
+        const m = document.getElementById("acctMsg");
+        if (m) m.textContent = "🤝 Create an account or sign in to accept your friend's invite.";
+      }
+    } else if (!cloudUser && (q.get("signin") === "1" || location.hash === "#signin")) {
+      openAcct();
+    }
   } catch (e) {}
   if (cloudUser) syncOnLogin();
 }
@@ -282,12 +296,21 @@ async function listFriends() {
 }
 async function friendsOnLogin() {
   try {
-    await ensureProfile();
-    const inv = new URLSearchParams(location.search).get("invite");
-    if (inv) {
-      const r = await redeemInvite(inv);
-      if (typeof toast === "function") toast((r.ok ? "🤝 " : "⚠️ ") + r.msg, r.ok ? "up" : "down");
+    await ensureProfile(); // make sure my profile/code exists before I join anyone
+    // Pending invite: from localStorage (set on the deep link, survives signup) or the URL.
+    let code = null;
+    try { code = localStorage.getItem("uplvl_pending_invite"); } catch (e) {}
+    if (!code) { try { code = new URLSearchParams(location.search).get("invite"); } catch (e) {} }
+    if (code) {
+      const r = await redeemInvite(code);
+      try { localStorage.removeItem("uplvl_pending_invite"); } catch (e) {}
       try { history.replaceState({}, "", location.pathname); } catch (e) {}
+      if (typeof toast === "function") toast((r.ok ? "🤝 " : "⚠️ ") + r.msg, r.ok ? "up" : "down");
+      if (r.ok) {
+        closeAcct(); // dismiss the sign-in dialog if it's still open
+        const ft = document.querySelector('.tab[data-tab="friends"]'); // enroll them on the Friends tab
+        if (ft) ft.click(); else if (typeof renderFriends === "function") renderFriends();
+      }
     }
     const p = document.getElementById("friends");
     if (p && p.classList.contains("active") && typeof renderFriends === "function") renderFriends();
