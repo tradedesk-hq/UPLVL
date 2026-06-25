@@ -1,6 +1,14 @@
-# Netlify config — UPLVL is a static site served straight from the repo root
-# (no build step). Once this repo is connected to Netlify
-# (app.netlify.com → Add new site → Import an existing project → GitHub → tradedesk-hq/UPLVL),
-# every push to `main` auto-deploys.
+# Netlify config — UPLVL static site served straight from the repo root (no build step).
+# Connected to GitHub: every push to `main` auto-deploys.
 [build]
   publish = "."
+
+# Public homepage = the waitlist landing page.
+# Serve landing.html at the site root ("/") via a rewrite (status 200 keeps the URL as "/").
+# force = true so it overrides the default index.html. The app stays reachable at
+# /index.html — which is exactly where the landing page's "Try the app" button links.
+[[redirects]]
+  from = "/"
+  to = "/landing.html"
+  status = 200
+  force = true
