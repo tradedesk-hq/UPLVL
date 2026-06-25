@@ -36,6 +36,11 @@ async function initCloud() {
   });
 
   updateSyncUI();
+  // Deep link: /index.html?signin=1 (or #signin) opens the sign-in dialog straight away.
+  try {
+    const q = new URLSearchParams(location.search);
+    if (!cloudUser && (q.get("signin") === "1" || location.hash === "#signin")) openAcct();
+  } catch (e) {}
   if (cloudUser) syncOnLogin();
 }
 
@@ -141,6 +146,11 @@ function updateSyncUI() {
   if (btn) {
     btn.textContent = cloudUser ? "☁ Synced" : cloudConfigured() ? "☁ Sign in to sync" : "☁ Sync";
   }
+  const topBtn = $("acctBtnTop");
+  if (topBtn) {
+    topBtn.textContent = cloudUser ? ("👤 " + ((cloudUser.email || "Account").split("@")[0])) : "Sign in";
+    topBtn.classList.toggle("signed-in", !!cloudUser);
+  }
   const signedOut = $("acctSignedOut");
   const signedIn = $("acctSignedIn");
   const config = $("acctConfig");
@@ -166,6 +176,8 @@ function closeAcct() { const m = $("acctModal"); if (m) m.hidden = true; }
 function wireAccountUI() {
   const btn = $("syncBtn");
   if (btn) btn.onclick = openAcct;
+  const topBtn = $("acctBtnTop");
+  if (topBtn) topBtn.onclick = openAcct;
   const close = $("acctClose");
   if (close) close.onclick = closeAcct;
   const modal = $("acctModal");

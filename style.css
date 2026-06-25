@@ -139,6 +139,19 @@ button { font-family: var(--body); }
 }
 .primary:hover { filter: brightness(1.08); box-shadow: 0 0 30px rgba(25,195,125,.45); }
 .primary:active { transform: translateY(1px); }
+.acct-btn {
+  font-size: 13px; font-weight: 700; color: #06140D; border: none; cursor: pointer;
+  background: linear-gradient(135deg, #22D98A, var(--accent-2));
+  padding: 8px 16px; border-radius: var(--radius-sm); white-space: nowrap;
+  box-shadow: 0 0 18px rgba(25,195,125,.28);
+  transition: filter .15s ease, transform .1s ease, box-shadow .15s ease;
+}
+.acct-btn:hover { filter: brightness(1.08); box-shadow: 0 0 26px rgba(25,195,125,.42); }
+.acct-btn:active { transform: translateY(1px); }
+.acct-btn.signed-in {
+  background: var(--surface); color: var(--text); font-weight: 600;
+  border: 1px solid var(--border); box-shadow: none;
+}
 .ghost {
   font-size: 15px; color: var(--text); cursor: pointer;
   background: var(--surface); border: 1px solid var(--border);
@@ -877,6 +890,9 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
    ============================================================ */
 @media (max-width: 680px) {
   .topbar { padding: 16px 16px 12px; }
+  .topbar .today { display: none; }            /* redundant on mobile — the date shows in the Daily header */
+  .topbar-right { gap: 8px; }
+  .acct-btn { padding: 7px 13px; font-size: 12px; }
   .tabs { padding: 4px 16px 0; }
   main { padding: 18px 16px 36px; }
   .foot { padding: 16px 16px 28px; }
