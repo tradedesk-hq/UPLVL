@@ -31,7 +31,6 @@
   <nav class="tabs">
     <button class="tab active" data-tab="daily">✓ Daily</button>
     <button class="tab" data-tab="profile">👤 Profile</button>
-    <button class="tab" data-tab="insights">📊 Insights</button>
     <button class="tab" data-tab="journal">✎ Journal</button>
     <button class="tab" data-tab="bible">✝ Bible Reading</button>
   </nav>
@@ -134,52 +133,20 @@
       </div>
     </section>
 
-    <!-- ===================== PROFILE ===================== -->
+    <!-- ===================== PROFILE (Insights + identity, merged) ===================== -->
     <section id="profile" class="panel">
       <div class="panel-head">
         <h2 id="profileTitle">Profile</h2>
-        <div class="stats" id="profileSub"></div>
-      </div>
-
-      <!-- Identity / hero -->
-      <div class="profile-hero" id="profileHero"></div>
-
-      <!-- Rank ladder -->
-      <div class="section-block">
-        <div class="block-head">
-          <h3>Rank Ladder</h3>
-          <span class="block-note" id="ladderNote"></span>
-        </div>
-        <div class="ladder" id="rankLadder"></div>
-      </div>
-
-      <!-- Friends -->
-      <div class="section-block">
-        <div class="block-head">
-          <h3>Friends</h3>
-          <span class="block-note">Leaderboard</span>
-        </div>
-        <div id="friendsBody"></div>
-      </div>
-
-      <!-- Achievements -->
-      <div class="section-block">
-        <div class="block-head">
-          <h3>Achievements</h3>
-          <span class="block-note" id="achCount"></span>
-        </div>
-        <div class="ach-grid" id="achGrid"></div>
-      </div>
-    </section>
-
-    <!-- ===================== INSIGHTS ===================== -->
-    <section id="insights" class="panel">
-      <div class="panel-head">
-        <h2>Insights</h2>
         <div class="journal-head-actions">
           <button id="recapBtn" class="ghost small">🎬 Recap</button>
-          <span class="stats" id="insightsSub"></span>
+          <span class="stats" id="profileSub"></span>
         </div>
+      </div>
+
+      <!-- ---------- INSIGHTS (shown above the profile/identity info) ---------- -->
+      <div class="block-head profile-section-label">
+        <h3>📊 Insights</h3>
+        <span class="stats" id="insightsSub"></span>
       </div>
 
       <div class="stat-cards" id="statCards"></div>
@@ -212,6 +179,34 @@
         <div class="block-head"><h3>Habit Completion <span class="block-note">last 30 days</span></h3></div>
         <div id="habitRates"></div>
         <p class="empty" id="ratesEmpty" hidden>Not enough history yet — check off some habits!</p>
+      </div>
+
+      <!-- ---------- IDENTITY / PROFILE ---------- -->
+      <div class="block-head profile-section-label profile-identity-label"><h3>👤 Identity</h3></div>
+      <div class="profile-hero" id="profileHero"></div>
+
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Rank Ladder</h3>
+          <span class="block-note" id="ladderNote"></span>
+        </div>
+        <div class="ladder" id="rankLadder"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Friends</h3>
+          <span class="block-note">Leaderboard</span>
+        </div>
+        <div id="friendsBody"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="block-head">
+          <h3>Achievements</h3>
+          <span class="block-note" id="achCount"></span>
+        </div>
+        <div class="ach-grid" id="achGrid"></div>
       </div>
     </section>
 

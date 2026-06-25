@@ -47,6 +47,7 @@ async function initCloud() {
 /* Pull remote on login; newest wins (whole-document, by meta.updatedAt). */
 async function syncOnLogin() {
   if (!sb || !cloudUser) return;
+  friendsOnLogin(); // fire-and-forget: ensure profile/invite code + auto-redeem ?invite=
   setSyncMsg("Syncing…");
   try {
     const { data, error } = await sb
@@ -208,6 +209,99 @@ function wireAccountUI() {
   });
   if (signout) signout.onclick = cloudSignOut;
 }
+
+/* ============================================================
+   FRIENDS & INVITES (Supabase)
+   Requires the friends schema (profiles + friendships tables — see
+   the SQL in FRIENDS-SETUP). Every call fails gracefully if the
+   tables/policies aren't there yet, so the app never breaks.
+   ============================================================ */
+function genInviteCode() {
+  const c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars
+  let s = ""; for (let i = 0; i < 6; i++) s += c[Math.floor(Math.random() * c.length)];
+  return s;
+}
+// Snapshot of public stats stored on the profile so friends can see your rank/level.
+function friendSnapshot() {
+  let level = 1, rankLabel = "Bronze", streak = 0;
+  try { const h = computeHistory(); level = levelInfo(h.rp).level; rankLabel = rankForRP(h.rp).label; streak = h.streak; } catch (e) {}
+  const fallback = (cloudUser && cloudUser.email ? cloudUser.email.split("@")[0] : "Player");
+  const nm = (typeof db !== "undefined" && db.meta && db.meta.name) ? db.meta.name : fallback;
+  return { display_name: nm, level: level, rank: rankLabel, streak: streak };
+}
+// Read (or create) my profile row; keeps my invite code stable, refreshes my stats.
+async function ensureProfile() {
+  if (!sb || !cloudUser) return null;
+  const snap = friendSnapshot();
+  const { data: prof, error } = await sb.from("profiles").select("*").eq("id", cloudUser.id).maybeSingle();
+  if (error) { console.warn("profiles read failed — friends tables set up?", error.message); return null; }
+  if (prof) {
+    sb.from("profiles").update({ ...snap, updated_at: new Date().toISOString() }).eq("id", cloudUser.id).then(() => {}, () => {});
+    return prof;
+  }
+  for (let i = 0; i < 5; i++) {
+    const code = genInviteCode();
+    const { data, error: ie } = await sb.from("profiles").insert({ id: cloudUser.id, invite_code: code, ...snap }).select().maybeSingle();
+    if (!ie) return data;
+    if (ie.code === "23505") { // unique violation: our row exists, or a code collision
+      const { data: again } = await sb.from("profiles").select("*").eq("id", cloudUser.id).maybeSingle();
+      if (again) return again;
+    } else { console.warn("profile insert failed", ie.message); return null; }
+  }
+  return null;
+}
+async function getMyInvite() {
+  const prof = await ensureProfile();
+  if (!prof || !prof.invite_code) return null;
+  const link = location.origin + location.pathname + "?invite=" + prof.invite_code;
+  return { code: "UPLVL-" + prof.invite_code, raw: prof.invite_code, link: link };
+}
+// Redeem someone's code → create a friendship (you = user_a).
+async function redeemInvite(input) {
+  if (!sb || !cloudUser) return { ok: false, msg: "Sign in first" };
+  const code = (input || "").trim().toUpperCase().replace(/^UPLVL-/, "").replace(/[^A-Z0-9]/g, "");
+  if (!code) return { ok: false, msg: "Enter a code" };
+  const { data: target, error } = await sb.from("profiles").select("id,display_name").eq("invite_code", code).maybeSingle();
+  if (error) return { ok: false, msg: "Couldn't reach the server" };
+  if (!target) return { ok: false, msg: "No one has that code" };
+  if (target.id === cloudUser.id) return { ok: false, msg: "That's your own code 😄" };
+  const { error: fe } = await sb.from("friendships").insert({ user_a: cloudUser.id, user_b: target.id });
+  if (fe && fe.code !== "23505") return { ok: false, msg: "Couldn't add friend" };
+  const nm = target.display_name || "friend";
+  return { ok: true, name: nm, msg: (fe && fe.code === "23505") ? ("Already friends with " + nm + " ✓") : ("Added " + nm + " 🤝") };
+}
+// All my friends' public profiles (friendship is symmetric — either column can be me).
+async function listFriends() {
+  if (!sb || !cloudUser) return [];
+  const { data, error } = await sb.from("friendships").select("user_a,user_b").or("user_a.eq." + cloudUser.id + ",user_b.eq." + cloudUser.id);
+  if (error || !data || !data.length) return [];
+  const ids = [...new Set(data.map((r) => (r.user_a === cloudUser.id ? r.user_b : r.user_a)))];
+  if (!ids.length) return [];
+  const { data: profs } = await sb.from("profiles").select("id,display_name,invite_code,level,rank,streak").in("id", ids);
+  return profs || [];
+}
+async function friendsOnLogin() {
+  try {
+    await ensureProfile();
+    const inv = new URLSearchParams(location.search).get("invite");
+    if (inv) {
+      const r = await redeemInvite(inv);
+      if (typeof toast === "function") toast((r.ok ? "🤝 " : "⚠️ ") + r.msg, r.ok ? "up" : "down");
+      try { history.replaceState({}, "", location.pathname); } catch (e) {}
+    }
+    const p = document.getElementById("profile");
+    if (p && p.classList.contains("active") && typeof renderFriends === "function") renderFriends();
+  } catch (e) { console.warn("friendsOnLogin", e); }
+}
+// Public API for app.js
+window.UPLVLFriends = {
+  ready: () => !!(sb && cloudUser),
+  configured: cloudConfigured,
+  getMyInvite: getMyInvite,
+  redeemInvite: redeemInvite,
+  listFriends: listFriends,
+  openAcct: openAcct,
+};
 
 /* boot once the page + Supabase script have loaded */
 if (document.readyState === "loading") {

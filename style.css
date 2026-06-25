@@ -990,3 +990,17 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   .card-actions { flex-direction: column; }
   .card-actions button { width: 100%; }
 }
+
+/* ---------- merged Profile tab (Insights above identity) ---------- */
+.profile-section-label { margin: 6px 0 14px; }
+.profile-section-label h3 { font-family: var(--display); font-weight: 800; font-size: 18px; }
+.profile-identity-label { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--border); }
+
+/* ---------- friends / invite system ---------- */
+.invite-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 12px; }
+.invite-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.invite-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; color: var(--muted); }
+.invite-code { font-family: var(--mono); font-weight: 700; font-size: 19px; letter-spacing: 1px; color: var(--accent-2); margin-top: 3px; }
+.invite-actions { display: flex; gap: 8px; }
+.friend-add { display: flex; gap: 8px; margin-bottom: 16px; }
+.friend-add input { flex: 1; min-width: 0; }

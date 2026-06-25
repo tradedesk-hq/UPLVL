@@ -354,8 +354,8 @@ function rerenderAll() {
   renderJournalList();
   renderBible();
   renderBibleExtras();
-  if (document.getElementById("insights").classList.contains("active")) renderInsights();
-  if (document.getElementById("profile").classList.contains("active")) renderProfile();
+  // Profile now contains the Insights view too — render both when it's open.
+  if (document.getElementById("profile").classList.contains("active")) { renderProfile(); renderInsights(); }
 }
 
 /* ============================================================
@@ -427,9 +427,8 @@ document.querySelectorAll(".tab").forEach((btn) => {
     document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "insights") renderInsights();
     if (btn.dataset.tab === "bible") renderBibleExtras();
-    if (btn.dataset.tab === "profile") renderProfile();
+    if (btn.dataset.tab === "profile") { renderProfile(); renderInsights(); }
   });
 });
 
@@ -2084,7 +2083,7 @@ function renderProfile() {
      </div>`;
 
   renderRankLadder(h.rp);
-  renderFriends(h, rank, lvl);
+  renderFriends();
   renderAchievements();
 }
 
@@ -2152,24 +2151,79 @@ function renderRankLadder(xp) {
 }
 
 /* Friends leaderboard — local scaffold until Supabase sync is wired. */
-function renderFriends(h, rank, lvl) {
+function renderFriends() {
   const body = document.getElementById("friendsBody");
-  const name = db.meta.name || "You";
+  if (!body) return;
+  const FR = window.UPLVLFriends;
+
+  // Not signed in → friends/invites live on your account.
+  if (!FR || !FR.ready()) {
+    body.innerHTML =
+      `<div class="friend-cta">
+         <p>Invites, friends &amp; leaderboards run on your UPLVL account. Sign in to get your invite code and add people.</p>
+         <button class="primary" id="friendSignin">Sign in to add friends</button>
+       </div>`;
+    const b = document.getElementById("friendSignin");
+    if (b) b.onclick = () => { if (FR && FR.openAcct) FR.openAcct(); else alert("Cloud sync isn't available."); };
+    return;
+  }
+
   body.innerHTML =
-    `<ul class="friend-list">
-       <li class="friend me">
-         <span class="fr-rank">1</span>
-         <span class="fr-name">${escapeHtml(name)} <span class="fr-you">you</span></span>
-         <span class="fr-xp">${h.rp.toLocaleString()} XP · Lvl ${lvl.level}</span>
-       </li>
-     </ul>
-     <div class="friend-cta">
-       <p>Add friends to compete on a live leaderboard, run group Boss-Fight weeks, and keep each other accountable.</p>
-       <button class="primary" id="friendInvite">Invite friends</button>
-     </div>`;
-  document.getElementById("friendInvite").onclick = () => {
-    alert("Friends & leaderboards turn on once cloud sync is set up (see SETUP-SYNC.md). Sign in, and you'll be able to invite people, compete on a live leaderboard, and run group Boss-Fight weeks.");
+    `<div class="invite-card" id="inviteCard"><p class="empty">Loading your invite…</p></div>
+     <div class="friend-add">
+       <input id="friendCodeInput" type="text" placeholder="Enter a friend's code…" autocomplete="off" autocapitalize="characters" />
+       <button class="primary" id="friendAddBtn">Add</button>
+     </div>
+     <div id="friendListBody"><p class="empty">Loading friends…</p></div>`;
+
+  FR.getMyInvite().then((inv) => {
+    const c = document.getElementById("inviteCard");
+    if (!c) return;
+    if (!inv) { c.innerHTML = `<p class="empty">Couldn't load your invite — make sure the friends tables are set up.</p>`; return; }
+    c.innerHTML =
+      `<div class="invite-row">
+         <div><div class="invite-label">YOUR INVITE CODE</div><div class="invite-code">${escapeHtml(inv.code)}</div></div>
+         <div class="invite-actions">
+           <button class="ghost small" id="copyCode">Copy</button>
+           <button class="ghost small" id="shareLink">Share link</button>
+         </div>
+       </div>`;
+    document.getElementById("copyCode").onclick = () => { try { navigator.clipboard && navigator.clipboard.writeText(inv.code); } catch (e) {} toast("📋 Code copied", "up"); };
+    document.getElementById("shareLink").onclick = () => {
+      const text = "Add me on UPLVL 👊 " + inv.link;
+      if (navigator.share) navigator.share({ text: text }).catch(() => {});
+      else { try { navigator.clipboard && navigator.clipboard.writeText(inv.link); } catch (e) {} toast("🔗 Invite link copied", "up"); }
+    };
+  });
+
+  const addBtn = document.getElementById("friendAddBtn");
+  addBtn.onclick = async () => {
+    const inp = document.getElementById("friendCodeInput");
+    if (!inp.value.trim()) { inp.focus(); return; }
+    addBtn.disabled = true; addBtn.textContent = "…";
+    const r = await window.UPLVLFriends.redeemInvite(inp.value);
+    toast((r.ok ? "🤝 " : "⚠️ ") + r.msg, r.ok ? "up" : "down");
+    addBtn.disabled = false; addBtn.textContent = "Add";
+    if (r.ok) { inp.value = ""; loadFriendList(); }
   };
+  document.getElementById("friendCodeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") addBtn.click(); });
+
+  loadFriendList();
+}
+
+function loadFriendList() {
+  const FR = window.UPLVLFriends;
+  const el = document.getElementById("friendListBody");
+  if (!el || !FR) return;
+  FR.listFriends().then((list) => {
+    if (!el) return;
+    if (!list.length) { el.innerHTML = `<p class="empty">No friends yet — share your code to add some.</p>`; return; }
+    list.sort((a, b) => (b.level || 0) - (a.level || 0));
+    el.innerHTML = `<ul class="friend-list">` + list.map((f, i) =>
+      `<li class="friend"><span class="fr-rank">${i + 1}</span>
+         <span class="fr-name">${escapeHtml(f.display_name || "Friend")}</span>
+         <span class="fr-xp">Lvl ${f.level || 1} · ${escapeHtml(f.rank || "Bronze")}${f.streak ? " · 🔥" + f.streak : ""}</span></li>`).join("") + `</ul>`;
+  }).catch(() => { if (el) el.innerHTML = `<p class="empty">Friends list unavailable — set up the friends tables.</p>`; });
 }
 
 /* ============================================================
