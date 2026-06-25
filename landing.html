@@ -180,8 +180,9 @@ document.addEventListener('DOMContentLoaded', async function() {
   </script>
 <script>
 /* UPLVL landing enhancements:
-   1) First name field on the waitlist forms + save email + first_name to Supabase
-      (resilient: falls back to email-only if the first_name column doesn't exist).
+   1) First name + optional phone fields on the waitlist forms, saved to Supabase
+      alongside email. The insert auto-strips any column that doesn't exist yet
+      (e.g. before `first_name`/`phone` are added), so a signup is never lost.
    2) A "Log in" nav link that deep-links into the app's sign-in dialog. */
 (function () {
   var SB_URL = "https://qefmkwccljnvrjdipmpp.supabase.co";
@@ -197,25 +198,32 @@ document.addEventListener('DOMContentLoaded', async function() {
   function isDup(err) {
     return !!err && /duplicate|unique|already|23505/i.test((err.message || "") + (err.code || ""));
   }
+  function styledInput(refEl, opts) {
+    var el = document.createElement('input');
+    el.type = opts.type; el.name = opts.name; el.placeholder = opts.placeholder;
+    if (opts.autocomplete) el.autocomplete = opts.autocomplete;
+    if (opts.inputmode) el.setAttribute('inputmode', opts.inputmode);
+    el.className = refEl.className;
+    try {
+      var cs = getComputedStyle(refEl);
+      ['paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth','borderStyle','borderColor','borderRadius','backgroundColor','color','fontSize','fontFamily','fontWeight','lineHeight','height','outline'].forEach(function (p) { if (cs[p]) el.style[p] = cs[p]; });
+      el.style.boxSizing = 'border-box'; el.style.width = '100%'; el.style.display = 'block';
+    } catch (e) {}
+    el.style.marginBottom = '10px';
+    return el;
+  }
   function enhance(form) {
     if (form.__fnDone) return;
     var emailEl = form.querySelector('input[type=email], input[name=email]');
     if (!emailEl) return;
     form.__fnDone = true;
     if (!form.querySelector('input[name=first_name]')) {
-      var fn = document.createElement('input');
-      fn.type = 'text'; fn.name = 'first_name';
-      fn.placeholder = 'First name'; fn.autocomplete = 'given-name';
-      fn.className = emailEl.className;
-      try {
-        var cs = getComputedStyle(emailEl);
-        ['paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth','borderStyle','borderColor','borderRadius','backgroundColor','color','fontSize','fontFamily','fontWeight','lineHeight','height','outline'].forEach(function (p) { if (cs[p]) fn.style[p] = cs[p]; });
-        fn.style.boxSizing = 'border-box';
-        fn.style.width = '100%';
-        fn.style.display = 'block';
-      } catch (e) {}
-      fn.style.marginBottom = '10px';
+      var fn = styledInput(emailEl, { type: 'text', name: 'first_name', placeholder: 'First name', autocomplete: 'given-name' });
       emailEl.parentNode.insertBefore(fn, emailEl);
+    }
+    if (!form.querySelector('input[name=phone]')) {
+      var ph = styledInput(emailEl, { type: 'tel', name: 'phone', placeholder: 'Phone (optional)', autocomplete: 'tel', inputmode: 'tel' });
+      emailEl.parentNode.insertBefore(ph, emailEl.nextSibling);
     }
     form.addEventListener('submit', function (e) {
       e.preventDefault(); e.stopImmediatePropagation(); submitForm(form);
@@ -223,18 +231,27 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
   async function submitForm(form) {
     var emailEl = form.querySelector('input[type=email], input[name=email]');
-    var fnEl = form.querySelector('input[name=first_name]');
     var email = ((emailEl && emailEl.value) || '').trim().toLowerCase();
-    var first_name = ((fnEl && fnEl.value) || '').trim();
+    var first_name = ((form.querySelector('input[name=first_name]') || {}).value || '').trim();
+    var phone = ((form.querySelector('input[name=phone]') || {}).value || '').trim();
     var btn = form.querySelector('button, [type=submit]');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { if (emailEl) emailEl.focus(); return; }
     var sb = client(); if (!sb) { alert("Couldn't reach the network — please try again."); return; }
     var orig = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = 'Joining…'; }
     try {
-      var res = await sb.from('waitlist').insert(first_name ? { email: email, first_name: first_name } : { email: email });
-      if (res.error && !isDup(res.error) && first_name) {
-        res = await sb.from('waitlist').insert({ email: email });
+      var payload = { email: email };
+      if (first_name) payload.first_name = first_name;
+      if (phone) payload.phone = phone;
+      var res, guard = 0;
+      while (true) {
+        res = await sb.from('waitlist').insert(payload);
+        if (!res.error || isDup(res.error)) break;
+        var m = (res.error.message || '').match(/Could not find the '([^']+)' column/i);
+        if (m && m[1] && m[1] !== 'email' && Object.prototype.hasOwnProperty.call(payload, m[1]) && guard++ < 4) {
+          delete payload[m[1]]; continue; // strip the missing column and retry (keeps email)
+        }
+        break;
       }
       if (res.error && !isDup(res.error)) throw res.error;
       localStorage.setItem(LS, '1');
