@@ -356,6 +356,7 @@ function rerenderAll() {
   renderBibleExtras();
   // Profile now contains the Insights view too — render both when it's open.
   if (document.getElementById("profile").classList.contains("active")) { renderProfile(); renderInsights(); }
+  if (document.getElementById("friends") && document.getElementById("friends").classList.contains("active")) renderFriends();
 }
 
 /* ============================================================
@@ -427,7 +428,8 @@ document.querySelectorAll(".tab").forEach((btn) => {
     document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "bible") renderBibleExtras();
+    if (btn.dataset.tab === "journal") renderBibleExtras();
+    if (btn.dataset.tab === "friends") renderFriends();
     if (btn.dataset.tab === "profile") { renderProfile(); renderInsights(); }
   });
 });
@@ -2083,7 +2085,6 @@ function renderProfile() {
      </div>`;
 
   renderRankLadder(h.rp);
-  renderFriends();
   renderAchievements();
 }
 

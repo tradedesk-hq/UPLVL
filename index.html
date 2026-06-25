@@ -31,8 +31,8 @@
   <nav class="tabs">
     <button class="tab active" data-tab="daily">✓ Daily</button>
     <button class="tab" data-tab="profile">👤 Profile</button>
+    <button class="tab" data-tab="friends">🤝 Friends</button>
     <button class="tab" data-tab="journal">✎ Journal</button>
-    <button class="tab" data-tab="bible">✝ Bible Reading</button>
   </nav>
 
   <main>
@@ -195,19 +195,20 @@
 
       <div class="section-block">
         <div class="block-head">
-          <h3>Friends</h3>
-          <span class="block-note">Leaderboard</span>
-        </div>
-        <div id="friendsBody"></div>
-      </div>
-
-      <div class="section-block">
-        <div class="block-head">
           <h3>Achievements</h3>
           <span class="block-note" id="achCount"></span>
         </div>
         <div class="ach-grid" id="achGrid"></div>
       </div>
+    </section>
+
+    <!-- ===================== FRIENDS ===================== -->
+    <section id="friends" class="panel">
+      <div class="panel-head">
+        <h2>Friends</h2>
+        <span class="stats" id="friendsSub"></span>
+      </div>
+      <div id="friendsBody"></div>
     </section>
 
     <!-- ===================== JOURNAL ===================== -->
@@ -240,13 +241,11 @@
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- ===================== BIBLE READING ===================== -->
-    <section id="bible" class="panel">
-      <div class="panel-head">
-        <h2>Bible Reading</h2>
-        <div class="stats" id="bibleStats"></div>
+      <!-- ===================== BIBLE READING (merged into Journal) ===================== -->
+      <div class="block-head profile-section-label profile-identity-label">
+        <h3>✝ Bible Reading</h3>
+        <span class="stats" id="bibleStats"></span>
       </div>
 
       <!-- Verse of the day -->

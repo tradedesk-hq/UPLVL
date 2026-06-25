@@ -289,7 +289,7 @@ async function friendsOnLogin() {
       if (typeof toast === "function") toast((r.ok ? "🤝 " : "⚠️ ") + r.msg, r.ok ? "up" : "down");
       try { history.replaceState({}, "", location.pathname); } catch (e) {}
     }
-    const p = document.getElementById("profile");
+    const p = document.getElementById("friends");
     if (p && p.classList.contains("active") && typeof renderFriends === "function") renderFriends();
   } catch (e) { console.warn("friendsOnLogin", e); }
 }
