@@ -58,76 +58,183 @@ async function initCloud() {
   if (cloudUser) syncOnLogin();
 }
 
-/* Pull remote on login; newest wins (whole-document, by meta.updatedAt). */
+/* ============================================================
+   LIVE MERGE SYNC
+   Devices never overwrite each other. We deep-MERGE local + remote —
+   unioning habit check-offs, quests, journal, time logs, photos, etc —
+   so a completion logged on ANY device is never lost and your rank
+   matches everywhere. Pull+merge runs on login, on focus, and on a
+   timer; every push merges first so a stale tab can't clobber newer data.
+   ============================================================ */
+function _isObj(v) { return v && typeof v === "object" && !Array.isArray(v); }
+// Order-independent stringify, so re-ordered-but-identical data isn't seen as "changed".
+function _stable(v) {
+  if (Array.isArray(v)) return "[" + v.map(_stable).join(",") + "]";
+  if (_isObj(v)) return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + _stable(v[k])).join(",") + "}";
+  return JSON.stringify(v);
+}
+function _weight(v) { // DEEP content measure, so real data always outweighs an empty/default shell
+  if (v == null) return 0;
+  if (Array.isArray(v)) return v.reduce((s, x) => s + 1 + _weight(x), 0);
+  if (_isObj(v)) return Object.keys(v).reduce((s, k) => s + _weight(v[k]), 0);
+  return v ? 1 : 0;
+}
+// For "current state" config (challenge, split, …): the richer value wins; newer breaks ties.
+function _pickRicher(a, b, aNewer) { const wa = _weight(a), wb = _weight(b); return wa !== wb ? (wa > wb ? a : b) : (aNewer ? a : b); }
+// Union arrays of objects by `id`; on conflict keep the newer doc's version.
+function _mergeById(a, b, aNewer) {
+  a = Array.isArray(a) ? a : []; b = Array.isArray(b) ? b : [];
+  const by = {}, order = [];
+  const add = (arr, win) => arr.forEach((it) => {
+    const id = it && it.id != null ? it.id : _stable(it);
+    if (!(id in by)) order.push(id);
+    if (!(id in by) || win) by[id] = it;
+  });
+  if (aNewer) { add(b, false); add(a, true); } else { add(a, false); add(b, true); }
+  return order.map((id) => by[id]);
+}
+function _mergeDayBool(a, b) { // {date:{id:true}} → union keys (a completion on either device wins)
+  const out = {}, dates = Object.assign({}, a, b);
+  Object.keys(dates).forEach((d) => { out[d] = Object.assign({}, _isObj(a[d]) ? a[d] : {}, _isObj(b[d]) ? b[d] : {}); });
+  return out;
+}
+function _mergeDayDeep(a, b) { // photos {date:{habitId:{slot:url}}} → deep union
+  const out = {}, dates = Object.assign({}, a, b);
+  Object.keys(dates).forEach((d) => {
+    const ad = _isObj(a[d]) ? a[d] : {}, bd = _isObj(b[d]) ? b[d] : {}, o = {}, ids = Object.assign({}, ad, bd);
+    Object.keys(ids).forEach((id) => { o[id] = Object.assign({}, _isObj(ad[id]) ? ad[id] : {}, _isObj(bd[id]) ? bd[id] : {}); });
+    out[d] = o;
+  });
+  return out;
+}
+function _mergeDayById(a, b, aNewer) { // tasks {date:[{id,…}]} → union per day
+  const out = {}, dates = Object.assign({}, a, b);
+  Object.keys(dates).forEach((d) => { out[d] = _mergeById(a[d], b[d], aNewer); });
+  return out;
+}
+function _mergeDayDedup(a, b) { // timeLog {date:[{habitId,minutes,…}]} → concat + dedupe by value
+  const out = {}, dates = Object.assign({}, a, b);
+  Object.keys(dates).forEach((d) => {
+    const seen = {}, list = [];
+    [].concat(Array.isArray(a[d]) ? a[d] : [], Array.isArray(b[d]) ? b[d] : []).forEach((it) => { const k = _stable(it); if (!seen[k]) { seen[k] = 1; list.push(it); } });
+    out[d] = list;
+  });
+  return out;
+}
+function _mergeDayNewer(a, b, aNewer) { // habitSnap/workouts → per-day from the newer doc (keeps scoring stable)
+  const out = {}, dates = Object.assign({}, a, b);
+  Object.keys(dates).forEach((d) => { out[d] = (d in a && d in b) ? (aNewer ? a[d] : b[d]) : (d in a ? a[d] : b[d]); });
+  return out;
+}
+function _mergeMeta(a, b) {
+  a = _isObj(a) ? a : {}; b = _isObj(b) ? b : {};
+  const aNewer = (a.updatedAt || 0) >= (b.updatedAt || 0);
+  const out = Object.assign({}, aNewer ? b : a, aNewer ? a : b); // newer wins field-by-field
+  out.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
+  out.onboarded = !!(a.onboarded || b.onboarded);
+  out.lastLevel = Math.max(a.lastLevel || 0, b.lastLevel || 0);
+  out.lastRankIndex = Math.max(a.lastRankIndex || 0, b.lastRankIndex || 0);
+  out.streakMilestones = Object.assign({}, a.streakMilestones, b.streakMilestones);
+  if (!out.name) out.name = a.name || b.name; // keep a display name if either has one
+  return out;
+}
+function mergeDB(a, b) {
+  a = _isObj(a) ? a : {}; b = _isObj(b) ? b : {};
+  const aNewer = ((a.meta && a.meta.updatedAt) || 0) >= ((b.meta && b.meta.updatedAt) || 0);
+  const out = {}, keys = Object.assign({}, a, b);
+  Object.keys(keys).forEach((k) => {
+    const av = a[k], bv = b[k];
+    if (av === undefined) { out[k] = bv; return; }
+    if (bv === undefined) { out[k] = av; return; }
+    switch (k) {
+      case "habitLog": case "bonusLog": out[k] = _mergeDayBool(av, bv); break;
+      case "photos": out[k] = _mergeDayDeep(av, bv); break;
+      case "tasks": out[k] = _mergeDayById(av, bv, aNewer); break;
+      case "timeLog": out[k] = _mergeDayDedup(av, bv); break;
+      case "habitSnap": case "workouts": out[k] = _mergeDayNewer(av, bv, aNewer); break;
+      case "journal": case "bible": case "prayers":
+      case "habits": case "principles": case "workoutTemplate":
+        out[k] = _mergeById(av, bv, aNewer); break;
+      case "achievements": { // key→first-earned timestamp: union, earliest wins
+        const o = Object.assign({}, av, bv);
+        Object.keys(o).forEach((x) => { o[x] = Math.min((av && av[x]) || Infinity, (bv && bv[x]) || Infinity); });
+        out[k] = o; break;
+      }
+      case "booksRead": out[k] = Object.assign({}, bv, av); break; // union
+      case "meta": out[k] = _mergeMeta(av, bv); break;
+      default: out[k] = _pickRicher(av, bv, aNewer); // challenge, split, biblePlan, future keys
+    }
+  });
+  return out;
+}
+
+/* ---------- pull / push (merge-aware) ---------- */
+async function _pullMerge() { // merge cloud into local db; returns true if local changed
+  const { data, error } = await sb.from("app_state").select("data").eq("user_id", cloudUser.id).maybeSingle();
+  if (error) throw error;
+  const remote = data && data.data;
+  if (!remote) return false;
+  const before = _stable(db);
+  const merged = mergeDB(db, remote);
+  Object.keys(db).forEach((k) => delete db[k]);
+  Object.assign(db, merged);
+  migrate();
+  const changed = _stable(db) !== before;
+  if (changed) { saveLocal(); rerenderAll(); }
+  return changed;
+}
+async function _writeRemote() {
+  if (db.meta) db.meta.updatedAt = Date.now();
+  const { error } = await sb.from("app_state").upsert({ user_id: cloudUser.id, data: db, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 async function syncOnLogin() {
   if (!sb || !cloudUser) return;
   friendsOnLogin(); // fire-and-forget: ensure profile/invite code + auto-redeem ?invite=
   setSyncMsg("Syncing…");
   try {
-    const { data, error } = await sb
-      .from("app_state")
-      .select("data")
-      .eq("user_id", cloudUser.id)
-      .maybeSingle();
-    if (error) throw error;
-
-    const localUpdated = (db.meta && db.meta.updatedAt) || 0;
-    const remote = data && data.data;
-    const remoteUpdated = (remote && remote.meta && remote.meta.updatedAt) || 0;
-
-    // Decide direction safely. Timestamps alone are risky: a brand-new device
-    // stamps itself "now" on first load, so an EMPTY phone could look newer than
-    // a populated laptop and overwrite it. Rule: a device with no real data never
-    // overwrites one that has data; only when both (or neither) have data does
-    // newest-save win on the whole document.
-    const hasData = (d) => !!d && (
-      (d.habitLog && Object.keys(d.habitLog).length) ||
-      (Array.isArray(d.journal) && d.journal.length) ||
-      (Array.isArray(d.bible) && d.bible.length) ||
-      (d.tasks && Object.keys(d.tasks).length) ||
-      (d.bonusLog && Object.keys(d.bonusLog).length) ||
-      (d.workouts && Object.keys(d.workouts).length) ||
-      (Array.isArray(d.prayers) && d.prayers.length) ||
-      (d.booksRead && Object.keys(d.booksRead).length)
-    );
-    const remoteHas = hasData(remote), localHas = hasData(db);
-    const pullRemote = remoteHas && !localHas ? true
-      : localHas && !remoteHas ? false
-      : remoteUpdated >= localUpdated;
-
-    if (remote && pullRemote) {
-      Object.keys(db).forEach((k) => delete db[k]);
-      Object.assign(db, remote);
-      migrate();
-      saveLocal();
-      rerenderAll();
-      setSyncMsg("Synced from cloud ☁️");
-      toast("Synced from this account ☁️", "up");
-    } else {
-      await pushRemote(); // local is newer (or remote empty)
-      setSyncMsg("Synced ✓");
-    }
+    await _pullMerge();   // fold the cloud into this device
+    await _writeRemote(); // push the union back so the cloud has everything too
+    setSyncMsg("Synced ✓");
+    if (typeof toast === "function") toast("Synced across your devices ☁️", "up");
   } catch (e) {
     console.error("sync-on-login failed", e);
     setSyncMsg("Sync failed — working locally");
   }
+  startLiveSync();
   updateSyncUI();
 }
 
+// Merge-before-write: a stale tab can never overwrite newer data on another device.
 async function pushRemote() {
   if (!sb || !cloudUser) return;
   try {
-    const { error } = await sb.from("app_state").upsert({
-      user_id: cloudUser.id,
-      data: db,
-      updated_at: new Date().toISOString(),
-    });
-    if (error) throw error;
+    await _pullMerge();
+    await _writeRemote();
     setSyncMsg("Synced ✓ " + new Date().toLocaleTimeString());
   } catch (e) {
     console.error("push failed", e);
     setSyncMsg("Couldn't reach cloud — saved locally");
   }
+}
+
+// Live pull — runs when the app regains focus and on a timer, so devices converge on their own.
+async function pullMerge() {
+  if (!sb || !cloudUser) return;
+  try {
+    const changed = await _pullMerge();
+    if (changed) { setSyncMsg("Synced ☁️ " + new Date().toLocaleTimeString()); await _writeRemote(); }
+  } catch (e) { /* offline — next tick will retry */ }
+}
+
+let liveStarted = false;
+function startLiveSync() {
+  if (liveStarted || !sb || !cloudUser) return;
+  liveStarted = true;
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pullMerge(); });
+  window.addEventListener("focus", () => pullMerge());
+  setInterval(() => { if (!document.hidden && cloudUser) pullMerge(); }, 45000);
 }
 
 // Called by app.js save(); debounced so rapid edits batch into one upload.
